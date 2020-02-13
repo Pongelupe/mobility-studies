@@ -2,23 +2,24 @@
 import csv23 
 import psycopg2
 
-with csv23.open_reader('ConexãoAeroporto.csv') as csv_file:
+with csv23.open_reader('data/PessoasFrequentamConenxaoEoutrosLocais.csv') as csv_file:
     con = psycopg2.connect(host='localhost', port=25432, database='mob',
             user='mob', password='mob')
     cursor = con.cursor()
 
-    sql = """
-    INSERT INTO public.conexao
-    (mac, init_conn, end_conn)
-    VALUES(%s, %s, %s);
-"""
+    query = """
+    SELECT COUNT(*) FROM public.conexao
+    WHERE mac IN %s;
+    """
 
     line = 0
+    macs = set()
     for p in csv_file:
-        print(p)
-        if line != 0:
-            cursor.execute(sql, (p[2], p[3], p[4], ))
+        if p[0].startswith( 'Conexão' ) and line !=0:
+            macs.add(p[1])
         line += 1
+    print(tuple(macs))
+    print(cursor.execute(query, (tuple(macs), )))
 
     con.commit()
     cursor.close()
