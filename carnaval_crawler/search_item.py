@@ -6,6 +6,7 @@ class CarnivalBlockItem(scrapy.Item):
     day = scrapy.Field()
     time = scrapy.Field()
     profiles = scrapy.Field()
+    music_types = scrapy.Field()
     start_address = scrapy.Field()
     final_address = scrapy.Field()
     route = scrapy.Field()

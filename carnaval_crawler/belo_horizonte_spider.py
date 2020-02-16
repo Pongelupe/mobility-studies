@@ -22,8 +22,19 @@ class BeloHorizonteSpider(scrapy.Spider):
         hrefs = response.xpath("//a[starts-with(@href, '/carnaval')]//@href").getall()
         for href in hrefs:
             if href.startswith("/carnaval/bloco?reg="):
-                request = scrapy.Request(f"{self.BASE_URL}{href},callback=self.parse_model")
+                request = scrapy.Request(f"{self.BASE_URL}{href}", callback=self.parse_model)
                 yield request
 
     def parse_model(self, response):
-        print(response)
+        item = CarnivalBlockItem()
+        item['name'] = response.xpath("/html/body/div[1]/div/span[2]/text()").get()
+        item['description'] = response.xpath("/html/body/div[1]/div/span[4]/text()").get() 
+        item['day'] = response.xpath("/html/body/div[1]/div/span[8]/text()").get() 
+        item['time'] = response.xpath("/html/body/div[1]/div/span[10]/text()").get() 
+        item['profiles'] = response.xpath("/html/body/div[1]/div/span[12]/text()").get() 
+        item['music_types'] = response.xpath("/html/body/div[1]/div/span[14]/text()").get() 
+        item['start_address'] = response.xpath("/html/body/div[1]/div/span[6]/text()").get() 
+        item['final_address'] = response.xpath("/html/body/div[1]/div/span[16]/text()").get() 
+        item['route'] = response.xpath("/html/body/div[1]/div/span[18]/text()").get() 
+
+        yield item
