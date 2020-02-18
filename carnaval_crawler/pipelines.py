@@ -45,7 +45,6 @@ class PostgresPipeline(object):
         final_address = self.retreive_or_insert(self.SQL_SELECT_ADDRESS, self.SQL_INSERT_ADDRESS, item['final_address'])
         self.cursor.execute(self.SQL_INSERT_CARNIVAL_BLOCK, (item['name'], item['description'], f'{item["day"]} {item["time"]}', start_address, final_address, ))
         id_block = self.cursor.fetchone()[0]
-       #self.connection.commit()
 
         # insert music_typexcarnival_block
         self.insert_list_items_related_to_block(self.SQL_SELECT_MUSIC_TYPE, self.SQL_INSERT_MUSIC_TYPE, self.SQL_INSERT_MUSIC_TYPEXCARNIVAL_BLOCK, item['music_types'], id_block)
@@ -59,12 +58,11 @@ class PostgresPipeline(object):
         return item
     
     def retreive_or_insert(self, sql_select, sql_insert, value):
-        self.cursor.execute(sql_select, (value, ))
+        self.cursor.execute(sql_select, (value.strip(), ))
         db_id = self.cursor.fetchone()
         if db_id == None:
-            self.cursor.execute(sql_insert, (value, ))
+            self.cursor.execute(sql_insert, (value.strip(), ))
             db_id = self.cursor.fetchone()[0]
-           #self.connection.commit()
         else:
             db_id = db_id[0]
         return db_id
