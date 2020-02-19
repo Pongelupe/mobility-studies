@@ -2,7 +2,7 @@
 import csv23 
 import psycopg2
 
-with csv23.open_reader('ConexãoAeroporto.csv') as csv_file:
+with csv23.open_reader('data/ConexãoAeroporto.csv') as csv_file:
     con = psycopg2.connect(host='localhost', port=25432, database='mob',
             user='mob', password='mob')
     cursor = con.cursor()
