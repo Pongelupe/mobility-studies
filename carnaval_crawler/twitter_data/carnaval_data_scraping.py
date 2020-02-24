@@ -21,13 +21,11 @@ def job(id_block, newest_tweet_id, search_query, auth):
     tweets_collection = mongo_client['carnaval_db']['tweets']
 #------------- DATABASES
 
+    api = tweepy.API(auth, wait_on_rate_limit=True)
+    public_tweets = tweepy.Cursor(api.search, q=search_query).items(200) if newest_tweet_id == -1 else tweepy.Cursor(api.search, q=search_query, since_id = newest_tweet_id).items(200)
     cursor.execute(INSERT_SEARCH, (id_block, ))
     search_id = cursor.fetchone()[0]
-
-    api = tweepy.API(auth)
-    public_tweets = tweepy.Cursor(api.search, q=search_query).items(1000) if newest_tweet_id == -1 else tweepy.Cursor(api.search, q=search_query, since_id = newest_tweet_id).items(1000)
     print(public_tweets)
-    #print(f"searched {len(list(public_tweets))} tweets!")
     for tweet in public_tweets:
         tweet_id = tweet._json['id']
         cursor.execute(EXISTS_TWEET, (tweet_id, ))

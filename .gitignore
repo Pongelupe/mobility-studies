@@ -1,3 +1,4 @@
 postgres/
 data/*.csv
 __pycache__/
+carnaval_crawler/twitter_data/twitter_keys

@@ -45,7 +45,7 @@ from
 	order by
 		2) as ids_and_tweet_count
 where ids_and_tweet_count.id_block in (select tsc2.id_block from tweet_search_control tsc2
-where tsc2.final_search_time > current_timestamp - interval '4 hours'
+where tsc2.final_search_time < current_timestamp - interval '30 minutes'
 and tsc2.final_search_time = (select max(tsc3.final_search_time) from tweet_search_control tsc3 where tsc3.id_block = ids_and_tweet_count.id_block limit 1))
 order by ids_and_tweet_count.c
 limit 1;
@@ -85,7 +85,7 @@ def job(block, newest_tweet, search_query, auth):
     print(f"{block_id},{newest_tweet_id},{search_query_text}")
     carnaval_data_scraping.job(block_id, newest_tweet_id, search_query_text, auth)
 
-schedule.every(1).minutes.do(job, lambda : get_block_id(), lambda block_id :get_newest_tweet_by_block_id(block_id), lambda block_id : get_search_query_block_id(block_id), auth)
+schedule.every().seconds.do(job, lambda : get_block_id(), lambda block_id :get_newest_tweet_by_block_id(block_id), lambda block_id : get_search_query_block_id(block_id), auth)
 
 #execute at first
 job(lambda : get_block_id(), lambda block_id :get_newest_tweet_by_block_id(block_id), lambda block_id : get_search_query_block_id(block_id), auth)
