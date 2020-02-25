@@ -10,10 +10,12 @@ radius = sys.argv[3] # the radius em meters from the coord to be searched
 
 BASE_URL_PLACES_SERVICE = 'https://maps.googleapis.com/maps/api/place/nearbysearch/json'
 
-SELECT_PLACES_TYPE = "select id_place_type from palce_type where desc_type in %s"
+SELECT_PLACES_TYPE = "select id_place_type from place_type where desc_type in %s"
 EXISTS_PLACE = "select count(1) > 0 from place where id_place = %s"
-INSERT_PLACE = "INSERT INTO public.place (id_place, coords) VALUES(%s, ST_MakePoint(%s, %s)) RETURNING id_palce"
-SELECT_COORDS = "SELECT ST_X(coords), ST_Y(coords) FROM carnival_address limit 1"
+INSERT_PLACE = 'INSERT INTO public.place (id_place, coords, "name") VALUES(%s, ST_MakePoint(%s, %s), %s)'
+SELECT_COORDS = "SELECT ST_X(coords), ST_Y(coords), id_address FROM carnival_address where id_address not in (select id_address from placexcarnival_address)"
+INSERT_PLACEXADDRESS = "INSERT INTO public.placexcarnival_address (id_place, id_address) VALUES(%s, %s)"
+INSERT_TYPEXPLACE = "INSERT INTO public.typexplace (id_place, id_place_type) VALUES(%s, %s)"
 
 con = psycopg2.connect(host='localhost', port=25432, database='mob',
             user='mob', password='mob')
@@ -34,12 +36,28 @@ def search_coords(params):
 cursor.execute(SELECT_COORDS)
 addresses_coords = cursor.fetchall()
 for address_coord in addresses_coords:
-    print(address_coord[0])
     params = {
             'location': f"{address_coord[1]},{address_coord[0]}",
             'radius': radius,
             'key': key
             }
-    print(search_coords(params))
+    print(f"places for address_id -> {address_coord[2]}")
+    places = search_coords(params)
+    for place in places:
+        id_place = place['id']
+        name = place['name']
+        geometry = place['geometry']['location']
+        cursor.execute(EXISTS_PLACE, (id_place, ))
+        if not cursor.fetchone()[0]:
+            print(f"{name} discovered!")
+            cursor.execute(INSERT_PLACE, (id_place, geometry['lng'], geometry['lat'], name))
+            cursor.execute(SELECT_PLACES_TYPE, (tuple(place['types']), ))
+            types = cursor.fetchall()
+            for place_type in types:
+                cursor.execute(INSERT_TYPEXPLACE, (id_place, place_type))
+            places_collection.insert_one(place)
 
+
+        cursor.execute(INSERT_PLACEXADDRESS, (id_place, address_coord[2]))
+        con.commit()
 cursor.close()
