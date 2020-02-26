@@ -5,6 +5,7 @@ import time
 import tweepy
 import sys
 import carnaval_data_scraping
+import truncated_tweets_retreive
 
 consumer_key = sys.argv[1] # Twitter consumer key
 consumer_secret = sys.argv[2] # Twitter consumer secret
@@ -60,9 +61,12 @@ SELECT_BLOCK_NAME_BY_BLOCK_ID = 'select "name" from carnival_block where id_bloc
 def get_block_id():
     cursor.execute(SELECT_ID_BLOCK_FIRST_TIME)
     block = cursor.fetchone()
+    con.commit()
     if block == None: # all blocks have been scraped at least once!
         cursor.execute(SELECT_ID_BLOCK_LATER)
-        return cursor.fetchone()[0]
+        other_block = cursor.fetchone()
+        print(f"other_block ---> {other_block}")
+        return None if other_block == None else other_block[0]
     else:
         return block[0]
 
@@ -80,12 +84,19 @@ def get_search_query_block_id(block_id):
 
 def job(block, newest_tweet, search_query, auth):
     block_id = block()
-    newest_tweet_id = newest_tweet(block_id)
-    search_query_text = search_query(block_id)
-    print(f"{block_id},{newest_tweet_id},{search_query_text}")
-    carnaval_data_scraping.job(block_id, newest_tweet_id, search_query_text, auth)
+    if block_id == None:
+        print("All blocks searched in the last 30 minutes, time to retrieve some truncated tweets!")
+        truncated_tweets_retreive.job(auth)
+    else:
+        newest_tweet_id = newest_tweet(block_id)
+        search_query_text = search_query(block_id)
+        print(f"{block_id},{newest_tweet_id},{search_query_text}")
+        carnaval_data_scraping.job(block_id, newest_tweet_id, search_query_text, auth)
 
+#-------- JOBS
 schedule.every().seconds.do(job, lambda : get_block_id(), lambda block_id :get_newest_tweet_by_block_id(block_id), lambda block_id : get_search_query_block_id(block_id), auth)
+schedule.every().hours.do(truncated_tweets_retreive.job, auth)
+#-------- JOBS
 
 #execute at first
 job(lambda : get_block_id(), lambda block_id :get_newest_tweet_by_block_id(block_id), lambda block_id : get_search_query_block_id(block_id), auth)

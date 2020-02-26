@@ -1,4 +1,3 @@
-import json
 import tweepy
 import psycopg2
 import pymongo
