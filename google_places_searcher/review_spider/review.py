@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+import pymongo
+import scrapy
+from scrapy.crawler import CrawlerProcess
+from review_spider import ReviewSpider 
+
+mongo_client = pymongo.MongoClient('mongodb://localhost:27017')
+places_collection = mongo_client['carnaval_db']['places']
+
+places = places_collection.find({}).limit(1).skip(4)
+#places = places_collection.find({})
+start_urls = []
+
+for place in places:
+    q = ''
+    if 'vicinity' in place:
+        q = f"{place['name']} - {place['vicinity']}"
+    else:
+        q = place['name']
+    url = f'https://www.google.com/search?q="{q}"&ie=UTF-8'
+    print(url)
+    start_urls.append(url)
+
+process = CrawlerProcess(settings={
+    'BOT_NAME': 'google_review_scrapper',
+    'FEED_FORMAT': 'json',
+    'USER_AGENT': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
+   #'ITEM_PIPELINES': {
+   #    'pipelines.PostgresPipeline': 300
+   #    },
+    'DOWNLOADER_MIDDLEWARES': {
+        'scrapy_splash.SplashCookiesMiddleware': 723,
+        'scrapy_splash.SplashMiddleware': 725,
+        'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 810,
+        },
+    'POSTGRES_HOST': 'localhost',
+    'POSTGRES_PORT': '25432',
+    'POSTGRES_DB': 'mob',
+    'POSTGRES_USER': 'mob',
+    'POSTGRES_PASSWORD': 'mob'
+    })
+process.crawl(ReviewSpider, start_urls)
+process.start()
