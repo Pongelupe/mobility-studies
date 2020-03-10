@@ -26,3 +26,11 @@ services:
       - ./data/db:/data/db
     ports:
       - 27017:27017
+  splash:
+    image: "scrapinghub/splash"
+    restart: always
+    container_name: "splash_mobility"
+    ports:
+      - 5023:5023
+      - 8050:8050
+      - 8051:8051
