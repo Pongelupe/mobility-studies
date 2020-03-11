@@ -7,7 +7,7 @@ from review_spider import ReviewSpider
 mongo_client = pymongo.MongoClient('mongodb://localhost:27017')
 places_collection = mongo_client['carnaval_db']['places']
 
-places = places_collection.find({}).limit(1).skip(4)
+places = places_collection.find({}).limit(3).skip(4)
 #places = places_collection.find({})
 start_urls = []
 
@@ -25,9 +25,9 @@ process = CrawlerProcess(settings={
     'BOT_NAME': 'google_review_scrapper',
     'FEED_FORMAT': 'json',
     'USER_AGENT': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
-   #'ITEM_PIPELINES': {
-   #    'pipelines.PostgresPipeline': 300
-   #    },
+   'ITEM_PIPELINES': {
+       'pipelines.FilterPipeline': 300
+       },
     'DOWNLOADER_MIDDLEWARES': {
         'scrapy_splash.SplashCookiesMiddleware': 723,
         'scrapy_splash.SplashMiddleware': 725,
