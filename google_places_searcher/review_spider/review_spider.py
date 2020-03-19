@@ -9,6 +9,8 @@ class ReviewSpider(scrapy.Spider):
         assert(splash:go(args.url))
         splash:runjs("document.querySelector('#rhs > div > div.kp-blk.knowledge-panel.Wnoohf.OJXvsb > div > div.ifM9O > div > div.kp-header > div:nth-child(2) > div.fYOrjf.iB08Xb.kp-hc > div:nth-child(2) > div > div > span.hqzQac > span > a').click()")
         assert(splash:wait(0.75))
+        splash:runjs("var scroll  = document.querySelector('#gsr > span > g-lightbox > div.ynlwjd.oLLmo.u98ib > div.AU64fe > span > div > div > div > div.review-dialog-list')")
+        splash:runjs("const sleep = ms => new Promise(resolve => setTimeout(resolve, ms)); let l = document.querySelectorAll('.WMbnJf').length; const tot = Number.parseInt(".. args.reviews_count.. ");const s = async (tot, scroll) => { scroll.scrollTop = scroll.scrollHeight; const c = document.querySelectorAll('.WMbnJf').length;await sleep(3000);return c;};while (l < tot) { l = await s(tot, scroll); }")
         return splash:html()
     end
     """
@@ -36,13 +38,14 @@ class ReviewSpider(scrapy.Spider):
                     endpoint='execute',
                     dont_filter = True,
                     args={'lua_source': self.script_click_a,
-                        'url': url},
+                        'url': url, 'reviews_count': comments_count},
                     meta={'reviews_count': comments_count}
                     )
         else:
             yield {}
 
     def parse_result(self, response):
+        print(response.body)
         review_divs = response.css('.WMbnJf').extract()
 
         reviewrs = response.xpath('//div[@class="TSUbDb"]/a')
