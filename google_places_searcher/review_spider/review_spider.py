@@ -9,8 +9,24 @@ class ReviewSpider(scrapy.Spider):
         assert(splash:go(args.url))
         splash:runjs("document.querySelector('#rhs > div > div.kp-blk.knowledge-panel.Wnoohf.OJXvsb > div > div.ifM9O > div > div.kp-header > div:nth-child(2) > div.fYOrjf.iB08Xb.kp-hc > div:nth-child(2) > div > div > span.hqzQac > span > a').click()")
         assert(splash:wait(0.75))
-        splash:runjs("var scroll  = document.querySelector('#gsr > span > g-lightbox > div.ynlwjd.oLLmo.u98ib > div.AU64fe > span > div > div > div > div.review-dialog-list')")
-        splash:runjs("const sleep = ms => new Promise(resolve => setTimeout(resolve, ms)); let l = document.querySelectorAll('.WMbnJf').length; const tot = Number.parseInt(".. args.reviews_count.. ");const s = async (tot, scroll) => { scroll.scrollTop = scroll.scrollHeight; const c = document.querySelectorAll('.WMbnJf').length;await sleep(3000);return c;};while (l < tot) { l = await s(tot, scroll); }")
+
+        local l = splash:evaljs("document.querySelectorAll('.WMbnJf').length")
+        local tot = splash:evaljs("Number.parseInt('".. args.reviews_count .. "')")
+        
+        local s = splash:jsfunc([[
+            function(tot) {
+                var scroll = document.querySelector('#gsr > span > g-lightbox > div.ynlwjd.oLLmo.u98ib > div.AU64fe > span > div > div > div > div.review-dialog-list');
+                scroll.scrollTop = scroll.scrollHeight;
+                return document.querySelectorAll('.WMbnJf').length;
+            }
+        ]])
+
+        while( l < tot )
+        do
+            l = s(tot)
+            assert(splash:wait(2.75))
+        end
+
         return splash:html()
     end
     """
@@ -45,7 +61,7 @@ class ReviewSpider(scrapy.Spider):
             yield {}
 
     def parse_result(self, response):
-        print(response.body)
+       # print(response.body)
         review_divs = response.css('.WMbnJf').extract()
 
         reviewrs = response.xpath('//div[@class="TSUbDb"]/a')
@@ -56,5 +72,5 @@ class ReviewSpider(scrapy.Spider):
         for i,r in enumerate(review_divs):
             hidden_review = reviews[i].xpath('.//span[@style="display:none"]/text()').get() 
             review = hidden_review if hidden_review is not None else reviews[i].xpath('.//text()').get()
-            print(f"""{i} --> {reviewrs[i].attrib['href']}, {comment_count[i]}, {stars_and_relative_time[i].xpath('.//span[@class="dehysf"]/text()').get()}, {comment_count[i]}, {stars_and_relative_time[i].xpath('.//g-review-stars/span/span').attrib['style'].split(':')[1][:-2]}, {review}""")
+            print(f"""{i} --> {reviewrs[i].attrib['href']}, {stars_and_relative_time[i].xpath('.//span[@class="dehysf"]/text()').get()}, {comment_count[i]}, {stars_and_relative_time[i].xpath('.//g-review-stars/span/span').attrib['style'].split(':')[1][:-2]}, {review}""")
 
