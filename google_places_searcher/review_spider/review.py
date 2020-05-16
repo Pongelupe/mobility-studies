@@ -7,9 +7,10 @@ from review_spider import ReviewSpider
 mongo_client = pymongo.MongoClient('mongodb://localhost:27017')
 places_collection = mongo_client['carnaval_db']['places']
 
-places = places_collection.find({}).limit(3).skip(4)
+#places = places_collection.find({}).limit(10).skip(8)
+places = places_collection.find({}).limit(1).skip(13)
 #places = places_collection.find({})
-start_urls = []
+start_objs = []
 
 for place in places:
     q = ''
@@ -18,8 +19,7 @@ for place in places:
     else:
         q = place['name']
     url = f'https://www.google.com/search?q="{q}"&ie=UTF-8'
-    print(url)
-    start_urls.append(url)
+    start_objs.append({'url': url, 'name': place['name'], 'id': place['id']})
 
 process = CrawlerProcess(settings={
     'BOT_NAME': 'google_review_scrapper',
@@ -39,5 +39,5 @@ process = CrawlerProcess(settings={
     'POSTGRES_USER': 'mob',
     'POSTGRES_PASSWORD': 'mob'
     })
-process.crawl(ReviewSpider, start_urls)
+process.crawl(ReviewSpider, start_objs)
 process.start()

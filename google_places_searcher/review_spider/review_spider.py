@@ -31,25 +31,26 @@ class ReviewSpider(scrapy.Spider):
     end
     """
 
-    def __init__(self, start_urls):
-        self.start_urls = start_urls
+    def __init__(self, start_objs):
+        self.start_objs = start_objs
         self.name = 'google review spider'
         scrapy.Spider.__init__(self)
 
     def start_requests(self):
-        for url in self.start_urls:
-            yield SplashRequest(url, self.parse,
+        for obj in self.start_objs:
+            yield SplashRequest(obj['url'], self.parse,
                 endpoint='render.html',
                 args={'wait': 0.5},
-                meta={'original_url': url}
+                meta={'original_obj': obj}
             )
     def parse(self, response):
+        obj = response.meta['original_obj']
         comments = response.xpath('//*[@id="rhs"]/div/div[1]/div/div[1]/div/div[1]/div[2]/div[2]/div[2]/div/div/span[2]/span/a/span/text()').get()
         if comments:
             name = response.xpath('//*[@id="rhs"]/div/div[1]/div/div[1]/div/div[1]/div[2]/div[2]/div[1]/div/div[2]/div[1]/span/text()').get()
-            print(f'{comments} for {name}')
+            print(f'{comments} for {obj["name"]}\n')
             comments_count = int(comments.split()[0].replace('.', ''))
-            url = response.meta['original_url']
+            url = obj['url']
             yield SplashRequest(url, self.parse_result,
                     endpoint='execute',
                     dont_filter = True,
