@@ -7,8 +7,8 @@ from review_spider import ReviewSpider
 mongo_client = pymongo.MongoClient('mongodb://localhost:27017')
 places_collection = mongo_client['carnaval_db']['places']
 
-#places = places_collection.find({}).limit(10).skip(8)
-places = places_collection.find({}).limit(1).skip(13)
+#places = places_collection.find({'name': 'Espaço Maggiore'})
+places = places_collection.find().limit(5).skip(13)
 #places = places_collection.find({})
 start_objs = []
 
