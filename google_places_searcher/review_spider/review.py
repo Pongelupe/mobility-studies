@@ -51,7 +51,7 @@ process = CrawlerProcess(settings={
 process.crawl(ReviewSpider, start_objs)
 process.start()
 print('end');
-#for obj in start_objs:
-#   cursor.execute(SQL_INSERT_PLACEXREVIEW_SEARCH, (obj['id'], ))    
-#   con.commit()
-#cursor.close()
+for obj in start_objs:
+    cursor.execute(SQL_INSERT_PLACEXREVIEW_SEARCH, (obj['id'], ))    
+    con.commit()
+cursor.close()
