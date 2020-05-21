@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
+import psycopg2
 import pymongo
 import scrapy
 from scrapy.crawler import CrawlerProcess
 from review_spider import ReviewSpider 
 
+SQL_SELECT_PLACES = "select p2.id_place from place p2 where p2.id_place not in (select id_place from placexreview_search ps) limit 10"
+SQL_INSERT_PLACEXREVIEW_SEARCH = "INSERT INTO public.placexreview_search (id_place) VALUES(%s)"
+
 mongo_client = pymongo.MongoClient('mongodb://localhost:27017')
 places_collection = mongo_client['carnaval_db']['places']
 
-#places = places_collection.find({'name': 'Espaço Maggiore'})
-places = places_collection.find().limit(5).skip(13)
-#places = places_collection.find({})
+con = psycopg2.connect(host='localhost', port=25432, database='mob',
+            user='mob', password='mob')
+cursor = con.cursor()
+
+cursor.execute(SQL_SELECT_PLACES, )
+places_id = cursor.fetchall()
+places = places_collection.find({'id': { '$in': list(map(lambda p: p[0], places_id)) }}).limit(1).skip(3)
 start_objs = []
 
 for place in places:
@@ -26,7 +34,8 @@ process = CrawlerProcess(settings={
     'FEED_FORMAT': 'json',
     'USER_AGENT': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
    'ITEM_PIPELINES': {
-       'pipelines.FilterPipeline': 300
+       'pipelines.FilterPipeline': 300,
+       'pipelines.SaveReviewPipeline': 400
        },
     'DOWNLOADER_MIDDLEWARES': {
         'scrapy_splash.SplashCookiesMiddleware': 723,
@@ -41,3 +50,8 @@ process = CrawlerProcess(settings={
     })
 process.crawl(ReviewSpider, start_objs)
 process.start()
+print('end');
+#for obj in start_objs:
+#   cursor.execute(SQL_INSERT_PLACEXREVIEW_SEARCH, (obj['id'], ))    
+#   con.commit()
+#cursor.close()

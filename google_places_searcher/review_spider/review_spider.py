@@ -1,5 +1,6 @@
 import scrapy
-import base64
+from search_item import SearchItem
+from scrapy.exceptions import CloseSpider
 from scrapy_splash import SplashRequest
 
 class ReviewSpider(scrapy.Spider):
@@ -57,8 +58,8 @@ class ReviewSpider(scrapy.Spider):
                var commentInRange = function(c) {
                     var split = c.split(' ');
                     if (split.length === 3) {
-                        var time = split[0] === 'um' ? 1 : parseInt(split[0]);
-                        return [2, 3, 4].includes(time) && split[1] === 'meses';
+                        var time = split[0].startsWith('um') ? 1 : parseInt(split[0]);
+                        return ([3, 4].includes(time) || time < 3) && (['meses', 'mês', 'semana', 'semanas', 'dias', 'dia', 'horas', 'hora', 'minutos', 'minuto'].includes(split[1]));
                     } else {
                         return false;
                     }
@@ -94,10 +95,11 @@ class ReviewSpider(scrapy.Spider):
                 meta={'original_obj': obj}
             )
     def parse(self, response):
+        print(response.body)
         obj = response.meta['original_obj']
         comments = response.xpath('//*[@id="rhs"]/div/div[1]/div/div[1]/div/div[1]/div[2]/div[2]/div[2]/div/div/span[2]/span/a/span/text()').get()
         if comments:
-            print(f'{comments} for {obj["name"]} -> {obj["id"]}')
+#           print(f'{comments} for {obj["name"]} -> {obj["id"]}')
             comments_count = int(comments.split()[0].replace('.', ''))
             url = obj['url']
             yield SplashRequest(url, self.parse_result,
@@ -108,6 +110,8 @@ class ReviewSpider(scrapy.Spider):
                         'url': url, 'reviews_count': comments_count},
                     meta={'original_obj': obj}
                     )
+        elif response.xpath('//*[@id="captcha-form"]').get():
+            raise CloseSpider("Captcha out!")
         else:
             print(f'0 for {obj["name"]} -> {obj["id"]}\n')
             yield {}
@@ -118,6 +122,9 @@ class ReviewSpider(scrapy.Spider):
 
         i = 1
         for r in review_divs:
+            complete_review = SearchItem()
+            complete_review['id_place'] = response.meta['original_obj']['id']
+
             reviewer = r.xpath('.//div[@class="TSUbDb"]/a').attrib['href']
             
             stars_and_relative_time = r.xpath('.//div[@class="PuaHbe"]')
@@ -128,7 +135,12 @@ class ReviewSpider(scrapy.Spider):
             hidden_review = reviews.xpath('.//span[@style="display:none"]/text()').get() 
             review = hidden_review if hidden_review is not None else reviews.xpath('.//text()').get()
 
-            print(f"{i} --> {reviewer}, {stars}, {relative_time}, {review}, {response.meta['original_obj']}")
+#           print(f"{i} --> {reviewer}, {stars}, {relative_time}, {review}, {response.meta['original_obj']}")
             i = i + 1
+            
+            complete_review['reviewer'] = reviewer
+            complete_review['stars'] = stars
+            complete_review['relative_time'] = relative_time
+            complete_review['review'] = review
 
-        print("\n--------------------------------------------\n")
+            yield complete_review  
