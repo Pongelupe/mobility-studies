@@ -7,11 +7,12 @@ from user_review_spider import UserReviewSpider
 SQL_SELECT_PLACES = "select p2.id_place from place p2 where p2.id_place not in (select id_place from placexreview_search ps) limit 10"
 SQL_INSERT_PLACEXREVIEW_SEARCH = "INSERT INTO public.placexreview_search (id_place) VALUES(%s)"
 
-con = psycopg2.connect(host='localhost', port=25432, database='mob',
-            user='mob', password='mob')
-cursor = con.cursor()
+#con = psycopg2.connect(host='localhost', port=25432, database='mob',
+#            user='mob', password='mob')
+#cursor = con.cursor()
 
 user = 'https://www.google.com/maps/contrib/107162384527452903903?hl=pt-BR&sa=X&ved=2ahUKEwiEn9Cgj8bpAhVGeawKHQtHAdYQvvQBegQIARAt'
+#user = 'https://www.google.com/maps/contrib/110236640560488811231/reviews/@-20.2392945,-45.7509064,6z?hl=pt-BR'
 
 start_objs = [{'url': user}]
 
