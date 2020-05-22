@@ -8,7 +8,7 @@ from review_spider import ReviewSpider
 from apscheduler.schedulers.twisted import TwistedScheduler
 
 
-SQL_SELECT_PLACES = "select p2.id_place from place p2 where p2.id_place not in (select id_place from placexreview_search ps) limit 5"
+SQL_SELECT_PLACES = "select p2.id_place from place p2 where p2.id_place not in (select id_place from placexreview_search ps) limit 1"
 SQL_INSERT_PLACEXREVIEW_SEARCH = "INSERT INTO public.placexreview_search (id_place) VALUES(%s)"
 
 
@@ -56,9 +56,9 @@ process = CrawlerProcess(settings={
     'POSTGRES_PASSWORD': 'mob'
     })
 
-if not sys.argv[1]:
+if len(sys.argv) == 1:
     scheduler = TwistedScheduler()
-    scheduler.add_job(process.crawl, 'interval', args=[ReviewSpider, lambda: start_objs()], seconds=30)
+    scheduler.add_job(process.crawl, 'interval', args=[ReviewSpider, lambda: start_objs()], seconds=10)
     scheduler.start()
     process.start(False)
 else:

@@ -52,6 +52,7 @@ class FilterPipeline(object):
         exists = self.cursor.fetchone()[0]
         if not exists:
             self.cursor.execute(self.SQL_INSERT_PLACEXREVIEW_SEARCH, (place_id, ))
+            self.connection.commit()
 
 
     def date_in_range(self, comment_relative_date):
@@ -96,7 +97,7 @@ class SaveReviewPipeline(object):
     def process_item(self, item, spider):
         print(item)
         self.cursor.execute(self.SQL_INSERT_REVIEW, (item['reviewer'], item['stars'], item['relative_time'], item['review'], item['place_id'], ))
-        self.cursor.commit()
+        self.connection.commit()
         self.save_search(item['place_id'])
 
     def save_search(self, place_id):
@@ -104,4 +105,4 @@ class SaveReviewPipeline(object):
         exists = self.cursor.fetchone()[0]
         if not exists:
             self.cursor.execute(self.SQL_INSERT_PLACEXREVIEW_SEARCH, (place_id, ))
-            self.cursor.commit()
+            self.connection.commit()
