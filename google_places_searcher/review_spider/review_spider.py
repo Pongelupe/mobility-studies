@@ -33,7 +33,7 @@ class ReviewSpider(scrapy.Spider):
         ]])
 
         click(tot)
-        assert(splash:wait(1.5))
+        assert(splash:wait(2.0))
 
         if (tot > 10) then
             sort()
@@ -83,7 +83,7 @@ class ReviewSpider(scrapy.Spider):
     """
 
     def __init__(self, start_objs):
-        self.start_objs = start_objs
+        self.start_objs = start_objs()
         self.name = 'google review spider'
         scrapy.Spider.__init__(self)
 
@@ -97,10 +97,8 @@ class ReviewSpider(scrapy.Spider):
     def parse(self, response):
        #print(response.body)
         obj = response.meta['original_obj']
-       #comments = response.xpath('//*[@id="rhs"]/div/div[1]/div/div[1]/div/div[1]/div[2]/div[2]/div[2]/div/div/span[2]/span/a/span/text()').get()
         comments = response.xpath('//span[contains(., "comentários no Google")][1]/text()').get()
         if comments and int(comments.split()[0].replace('.', '')) < 4000:
-#           print(f'{comments} for {obj["name"]} -> {obj["id"]}')
             comments_count = int(comments.split()[0].replace('.', ''))
             url = obj['url']
             yield SplashRequest(url, self.parse_result,
@@ -118,7 +116,7 @@ class ReviewSpider(scrapy.Spider):
                 yield { 'place_id': obj['id'], 'comments': int(comments.split()[0].replace('.', '')) }
             else:
                 print(f'0 for {obj["name"]} -> {obj["id"]}\n')
-                yield {}
+                yield {'place_id': obj['id']}
 
     def parse_result(self, response):
        #print(response.body)
@@ -127,7 +125,7 @@ class ReviewSpider(scrapy.Spider):
         i = 1
         for r in review_divs:
             complete_review = SearchItem()
-            complete_review['id_place'] = response.meta['original_obj']['id']
+            complete_review['place_id'] = response.meta['original_obj']['id']
 
             reviewer = r.xpath('.//div[@class="TSUbDb"]/a').attrib['href']
             
@@ -139,7 +137,6 @@ class ReviewSpider(scrapy.Spider):
             hidden_review = reviews.xpath('.//span[@style="display:none"]/text()').get() 
             review = hidden_review if hidden_review is not None else reviews.xpath('.//text()').get()
 
-#           print(f"{i} --> {reviewer}, {stars}, {relative_time}, {review}, {response.meta['original_obj']}")
             i = i + 1
             
             complete_review['reviewer'] = reviewer
