@@ -15,7 +15,7 @@ class ReviewSpider(scrapy.Spider):
                 var as = document.querySelectorAll('a');
                 var href = Array.prototype.slice.call(as, 0).filter(function(el) {
                     var span = el.querySelector('span');
-                    return span && span.textContent.startsWith(tot);
+                    return span && span.textContent.replace('.', '').startsWith(tot);
                 })[0];
                 href.click()
             }
@@ -33,7 +33,7 @@ class ReviewSpider(scrapy.Spider):
         ]])
 
         click(tot)
-        assert(splash:wait(1.0))
+        assert(splash:wait(1.5))
 
         if (tot > 10) then
             sort()
@@ -95,10 +95,11 @@ class ReviewSpider(scrapy.Spider):
                 meta={'original_obj': obj}
             )
     def parse(self, response):
-        print(response.body)
+       #print(response.body)
         obj = response.meta['original_obj']
-        comments = response.xpath('//*[@id="rhs"]/div/div[1]/div/div[1]/div/div[1]/div[2]/div[2]/div[2]/div/div/span[2]/span/a/span/text()').get()
-        if comments:
+       #comments = response.xpath('//*[@id="rhs"]/div/div[1]/div/div[1]/div/div[1]/div[2]/div[2]/div[2]/div/div/span[2]/span/a/span/text()').get()
+        comments = response.xpath('//span[contains(., "comentários no Google")][1]/text()').get()
+        if comments and int(comments.split()[0].replace('.', '')) < 4000:
 #           print(f'{comments} for {obj["name"]} -> {obj["id"]}')
             comments_count = int(comments.split()[0].replace('.', ''))
             url = obj['url']
@@ -113,8 +114,11 @@ class ReviewSpider(scrapy.Spider):
         elif response.xpath('//*[@id="captcha-form"]').get():
             raise CloseSpider("Captcha out!")
         else:
-            print(f'0 for {obj["name"]} -> {obj["id"]}\n')
-            yield {}
+            if comments:
+                yield { 'place_id': obj['id'], 'comments': int(comments.split()[0].replace('.', '')) }
+            else:
+                print(f'0 for {obj["name"]} -> {obj["id"]}\n')
+                yield {}
 
     def parse_result(self, response):
        #print(response.body)
