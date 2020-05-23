@@ -10,7 +10,7 @@ class UserReviewSpider(scrapy.Spider):
 
         local open_comments = splash:jsfunc([[
             function() {
-                document.querySelector("#pane > div > div.widget-pane-content.scrollable-y > div > div > div.section-tab-bar > button.section-tab-bar-tab.ripple-container.section-tab-bar-tab-unselected").click()
+                document.querySelector('#pane > div > div.widget-pane-content.scrollable-y > div > div > div.section-tab-bar > button.section-tab-bar-tab.ripple-container.section-tab-bar-tab-unselected').click()
             }
         ]])
 
@@ -21,11 +21,12 @@ class UserReviewSpider(scrapy.Spider):
                 if (quantity) {
                     var value = quantity.textContent;
                     if (resource == 0) {
-                        var realMax = parseInt(value.textContent.replace('.','')) // quantidade total de fotos ou comentários
-                        return realMax > 50 ? realMax : 50;
+                        var realMax = parseInt(value.replace('.','')) // quantidade total de fotos ou comentários
+                        return realMax < 50 ? realMax : 50;
                     } else {
                        var split = value.split(' ');
-                       return split.length === 5 ? parseInt(split[0]) + parseInt(split[3]) : parseInt(split[0])
+                       var realMax = split.length === 5 ? parseInt(split[0]) + parseInt(split[3]) : parseInt(split[0])
+                       return realMax < 50 ? realMax : 50;
                     }
                 } else {
                     return 0;
@@ -33,20 +34,19 @@ class UserReviewSpider(scrapy.Spider):
             }
         ]])
 
-        local has_to_scroll = splash:jsfunc([[
-            function(resource, max) {
+        local get_current = splash:jsfunc([[
+            function(resource) {
                 var panel = document.querySelector('#pane div.section-layout.section-scrollbox.scrollable-y.scrollable-show');
-                if (max > 0) {
-                    if (resource == 0) {
-                        photos = panel.querySelectorAll('.section-photo-bucket-photo') // quantidade fotos
-                        return photos < max;
-                    }
-                } else {
-                    return false;
-                }
+                return resource == 0 ? panel.querySelectorAll('.section-photo-bucket-photo').length : panel.querySelectorAll('.section-review-subtitle').length;
             }
         ]])
 
+        local scroll = splash:jsfunc([[
+            function() {
+                var scroll = document.querySelector('#pane > div > div.widget-pane-content.scrollable-y > div > div > div.section-layout.section-scrollbox.scrollable-y.scrollable-show');
+                scroll.scrollTop = scroll.scrollHeight;
+            }
+        ]])
 
         assert(splash:wait(1.0))
 
@@ -54,9 +54,19 @@ class UserReviewSpider(scrapy.Spider):
             open_comments()
             assert(splash:wait(0.75))
         end
-        local max = get_max()
 
-        return { html = splash:html(), resource = resource, has_to_scroll = has_to_scroll(resource, max), max = max}
+        local max = get_max(resource)
+        local current = get_current(resource)
+
+        while (current < max) do
+            scroll()
+            assert(splash:wait(2.0))
+            current = get_current(resource)
+        end
+
+        --current = get_current(resource)
+
+        return { html = splash:html(), resource = resource, max = max, current = current }
     end
     """
 
@@ -87,32 +97,29 @@ class UserReviewSpider(scrapy.Spider):
                 )
 
     def parse_result_resource(self, response):
+        user_locations = [] if not 'user_locations' in response.meta else response.meta['user_locations']
         resource = response.data['resource']
         obj = response.meta['original_obj']
+        max = response.data['max']
+        current = response.data['current']
         if resource == 0: #photo
-            if response.data['has_to_scroll']:
-                print('scroll photos')
-            else:
-                print('scrap photos')
-                print(f'response -------- >{response.data["max"]}')
-                yield SplashRequest(obj['url'], self.parse_result_resource,
-                        endpoint='execute',
-                        dont_filter = True,
-                        args={'lua_source': self.script_scroll_resource,
-                            'timeout': 90,
-                            'url': obj['url'], 'resource': 1, 'initial': True },
-                        meta={'original_obj': obj, 'url': obj['url'], 'resource': 1, 'initial': True })
+            locations = response.css('.section-photo-bucket-subtitle > span')
+            for l in locations:
+                location = l.xpath('.//text()').get()
+                user_locations.append(location)
 
+            yield SplashRequest(obj['url'], self.parse_result_resource,
+                    endpoint='execute',
+                    dont_filter = True,
+                    args={'lua_source': self.script_scroll_resource,
+                        'timeout': 90,
+                        'url': obj['url'], 'resource': 1, 'initial': True },
+                    meta={'original_obj': obj, 'url': obj['url'], 'resource': 1, 'initial': True, 'user_locations': user_locations })
         else: #comment
-            print(response.data)
-            if response.data['has_to_scroll']:
-                print('scroll comments')
-            else:
-                print('scrap comments')
-                yield SplashRequest(obj['url'], self.parse_result_resource,
-                        endpoint='execute',
-                        dont_filter = True,
-                        args={'lua_source': self.script_scroll_resource,
-                            'timeout': 90,
-                            'url': obj['url'], 'resource': 1, 'initial': False },
-                        meta={'original_obj': obj, 'url': obj['url'], 'resource': 1, 'initial': False })
+            locations = response.css('.section-review-subtitle')
+            for l in locations:
+                location = l.xpath('.//span[1]/text()').get()
+                user_locations.append(location)
+            print(len(user_locations))
+            for l in user_locations:
+                print(l)

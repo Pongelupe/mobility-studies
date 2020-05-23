@@ -11,10 +11,10 @@ SQL_INSERT_PLACEXREVIEW_SEARCH = "INSERT INTO public.placexreview_search (id_pla
 #            user='mob', password='mob')
 #cursor = con.cursor()
 
-user = 'https://www.google.com/maps/contrib/107162384527452903903?hl=pt-BR&sa=X&ved=2ahUKEwiEn9Cgj8bpAhVGeawKHQtHAdYQvvQBegQIARAt'
-#user = 'https://www.google.com/maps/contrib/110236640560488811231/reviews/@-20.2392945,-45.7509064,6z?hl=pt-BR'
+user2 = 'https://www.google.com/maps/contrib/107162384527452903903?hl=pt-BR&sa=X&ved=2ahUKEwiEn9Cgj8bpAhVGeawKHQtHAdYQvvQBegQIARAt'
+user = 'https://www.google.com/maps/contrib/110236640560488811231/photos/@-19.8615537,-43.9496531,13z/data=!3m1!4b1!4m3!8m2!3m1!1e1?hl=pt-BR'
 
-start_objs = [{'url': user}]
+start_objs = [{'url': user}, {'url': user2}]
 
 process = CrawlerProcess(settings={
     'BOT_NAME': 'google_review_scrapper',
