@@ -84,7 +84,6 @@ class UserReviewSpider(scrapy.Spider):
             )
 
     def parse(self, response):
-        print(response)
         obj = response.meta['original_obj']
         url = obj['url']
         yield SplashRequest(url, self.parse_result_resource,
@@ -120,6 +119,5 @@ class UserReviewSpider(scrapy.Spider):
             for l in locations:
                 location = l.xpath('.//span[1]/text()').get()
                 user_locations.append(location)
-            print(len(user_locations))
-            for l in user_locations:
-                print(l)
+            
+            yield {'user_id': obj['user_id'], 'user_locations': user_locations }

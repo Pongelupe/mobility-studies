@@ -4,23 +4,27 @@ import scrapy
 from scrapy.crawler import CrawlerProcess
 from user_review_spider import UserReviewSpider 
 
-SQL_SELECT_PLACES = "select p2.id_place from place p2 where p2.id_place not in (select id_place from placexreview_search ps) limit 10"
-SQL_INSERT_PLACEXREVIEW_SEARCH = "INSERT INTO public.placexreview_search (id_place) VALUES(%s)"
+SQL_SELECT_REVIEWS = "select distinct(r2.url_user) from review r2 where r2.user_id is null limit 2"
 
-#con = psycopg2.connect(host='localhost', port=25432, database='mob',
-#            user='mob', password='mob')
-#cursor = con.cursor()
+con = psycopg2.connect(host='localhost', port=25432, database='mob',
+            user='mob', password='mob')
+cursor = con.cursor()
 
-user2 = 'https://www.google.com/maps/contrib/107162384527452903903?hl=pt-BR&sa=X&ved=2ahUKEwiEn9Cgj8bpAhVGeawKHQtHAdYQvvQBegQIARAt'
-user = 'https://www.google.com/maps/contrib/110236640560488811231/photos/@-19.8615537,-43.9496531,13z/data=!3m1!4b1!4m3!8m2!3m1!1e1?hl=pt-BR'
+cursor.execute(SQL_SELECT_REVIEWS)
+users = cursor.fetchall()
+start_objs = []
 
-start_objs = [{'url': user}, {'url': user2}]
+for u in users:
+    user_id = u[0].split('?')[0].split('/')[-1]
+    user = {'user_id': str(user_id), 'url': f"https://www.google.com/maps/contrib/{user_id}/photos?hl=pt-BR"}
+    start_objs.append(user)
 
 process = CrawlerProcess(settings={
     'BOT_NAME': 'google_review_scrapper',
     'FEED_FORMAT': 'json',
     'USER_AGENT': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
    'ITEM_PIPELINES': {
+       'pipelines.SaveUserReviewPipeline': 300
        },
     'DOWNLOADER_MIDDLEWARES': {
         'scrapy_splash.SplashCookiesMiddleware': 723,
