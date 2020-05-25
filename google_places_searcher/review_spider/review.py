@@ -8,7 +8,31 @@ from review_spider import ReviewSpider
 from apscheduler.schedulers.twisted import TwistedScheduler
 
 
-SQL_SELECT_PLACES = "select p2.id_place from place p2 where p2.id_place not in (select id_place from placexreview_search ps) limit 1"
+#SQL_SELECT_PLACES = "select p2.id_place from place p2 where p2.id_place not in (select id_place from placexreview_search ps) limit 1"
+SQL_SELECT_PLACES = """
+select
+	p.id_place
+from
+	place p
+join typexplace txp on
+	txp.id_place = p.id_place
+join place_type pt on
+	pt.id_place_type = txp.id_place_type
+where
+	pt.desc_type in ('bar',
+	'cafe',
+	'convenience_store',
+	'pharmacy',
+	'liquor_store',
+	'restaurant',
+	'tourist_attraction')
+	and p.id_place not in (
+	select
+		pxrs.id_place
+	from
+		placexreview_search pxrs)
+limit 1
+"""
 SQL_INSERT_PLACEXREVIEW_SEARCH = "INSERT INTO public.placexreview_search (id_place) VALUES(%s)"
 
 
@@ -22,7 +46,7 @@ def start_objs():
 
     cursor.execute(SQL_SELECT_PLACES, )
     places_id = cursor.fetchall()
-    places = places_collection.find({'id': { '$in': list(map(lambda p: p[0], places_id)) }})#.skip(4)
+    places = places_collection.find({'id': { '$in': list(map(lambda p: p[0], places_id)) }})
     start_objs = []
 
     for place in places:
@@ -58,7 +82,7 @@ process = CrawlerProcess(settings={
 
 if len(sys.argv) == 1:
     scheduler = TwistedScheduler()
-    scheduler.add_job(process.crawl, 'interval', args=[ReviewSpider, lambda: start_objs()], seconds=10)
+    scheduler.add_job(process.crawl, 'interval', args=[ReviewSpider, lambda: start_objs()], seconds=45)
     scheduler.start()
     process.start(False)
 else:

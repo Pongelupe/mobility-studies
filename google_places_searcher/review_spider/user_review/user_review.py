@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 import psycopg2
 import scrapy
+import sys
 from scrapy.crawler import CrawlerProcess
 from user_review_spider import UserReviewSpider 
+from apscheduler.schedulers.twisted import TwistedScheduler
 
-SQL_SELECT_REVIEWS = "select distinct(r2.url_user) from review r2 where r2.user_id is null limit 2"
 
-con = psycopg2.connect(host='localhost', port=25432, database='mob',
+def start_objs():
+    SQL_SELECT_REVIEWS = "select distinct(r2.url_user) from review r2 where r2.user_id is null order by 1 asc limit 1"
+
+    con = psycopg2.connect(host='localhost', port=25432, database='mob',
             user='mob', password='mob')
-cursor = con.cursor()
+    cursor = con.cursor()
 
-cursor.execute(SQL_SELECT_REVIEWS)
-users = cursor.fetchall()
-start_objs = []
+    cursor.execute(SQL_SELECT_REVIEWS)
+    users = cursor.fetchall()
+    start_objs = []
 
-for u in users:
-    user_id = u[0].split('?')[0].split('/')[-1]
-    user = {'user_id': str(user_id), 'url': f"https://www.google.com/maps/contrib/{user_id}/photos?hl=pt-BR"}
-    start_objs.append(user)
+    for u in users:
+        user_id = u[0].split('?')[0].split('/')[-1]
+        user = {'user_id': str(user_id), 'url': f"https://www.google.com/maps/contrib/{user_id}/photos?hl=pt-BR"}
+        start_objs.append(user)
+    return start_objs
 
 process = CrawlerProcess(settings={
     'BOT_NAME': 'google_review_scrapper',
@@ -37,5 +42,12 @@ process = CrawlerProcess(settings={
     'POSTGRES_USER': 'mob',
     'POSTGRES_PASSWORD': 'mob'
     })
-process.crawl(UserReviewSpider, start_objs)
-process.start()
+
+if len(sys.argv) == 1:
+    scheduler = TwistedScheduler()
+    scheduler.add_job(process.crawl, 'interval', args=[UserReviewSpider, lambda: start_objs()], seconds=30)
+    scheduler.start()
+    process.start(False)
+else:
+    process.crawl(UserReviewSpider, lambda: start_objs())
+    process.start()
