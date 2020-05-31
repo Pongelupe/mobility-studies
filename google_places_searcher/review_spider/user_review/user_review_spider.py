@@ -54,11 +54,11 @@ class UserReviewSpider(scrapy.Spider):
             }
         ]])
 
-        assert(splash:wait(1.0))
+        assert(splash:wait(2.0))
 
         if ( resource == 1 ) then
             open_comments()
-            assert(splash:wait(0.75))
+            assert(splash:wait(1.75))
         end
 
         local max = get_max(resource)
