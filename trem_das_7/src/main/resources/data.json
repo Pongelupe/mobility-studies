@@ -1,0 +1,25 @@
+{
+    "target": {
+        "time": "",
+        "where":"place_id:ChIJKeN3V2OXpgARYUF19udf79E"
+    },
+    "passengers": [
+        {
+            "name": "pedro",
+            "location": "Rua Ametista 158 Prado",
+            "modals": []
+        },
+        {
+            "name": "soraya",
+            "location": "Rua joaquim nabuco 731 Nova Suissa",
+            "modals": []
+        },
+        {
+            "name": "paulinho",
+            "location": "Rua Castelo de Tordesillas 731, Castelo",
+            "modals": []
+        }
+    ]
+
+
+}
