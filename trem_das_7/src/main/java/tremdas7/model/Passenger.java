@@ -1,6 +1,6 @@
 package tremdas7.model;
 
-import java.util.List;
+import com.google.maps.model.TravelMode;
 
 import lombok.Data;
 
@@ -11,8 +11,10 @@ public class Passenger {
 	
 	private String location;
 	
-	private List<String> modals;
+	private TravelMode modals;
 	
 	private String description;
+	
+	private Ticket ticket;
 	
 }

@@ -1,6 +1,6 @@
 package tremdas7.model;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 import lombok.Data;
 
@@ -9,6 +9,6 @@ public class Location {
 
 	private String where;
 	
-	private Date time;
+	private LocalDateTime time;
 	
 }

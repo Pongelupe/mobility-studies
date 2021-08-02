@@ -1,23 +1,23 @@
 {
     "target": {
-        "time": "",
+        "time": "02-08-2021 12:30",
         "where":"place_id:ChIJKeN3V2OXpgARYUF19udf79E"
     },
     "passengers": [
         {
             "name": "pedro",
             "location": "Rua Ametista 158 Prado",
-            "modals": []
+            "modals": "WALKING"
         },
         {
             "name": "soraya",
             "location": "Rua joaquim nabuco 731 Nova Suissa",
-            "modals": []
+            "modals": "BICYCLING"
         },
         {
-            "name": "paulinho",
-            "location": "Rua Castelo de Tordesillas 731, Castelo",
-            "modals": []
+            "name": "daniel",
+            "location": "Rua Maestro Francisco Flores 111 São Luiz",
+            "modals": "DRIVING"
         }
     ]
 
