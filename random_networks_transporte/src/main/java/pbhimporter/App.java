@@ -1,32 +1,40 @@
 package pbhimporter;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import lombok.SneakyThrows;
+import pbhimporter.configuration.PostgisConfig;
+import pbhimporter.model.BasePbhResponse;
+import pbhimporter.model.resources.PontoOnibus;
 import pbhimporter.resources.ResourcesPBH;
+import pbhimporter.services.PBHService;
+import pbhimporter.services.PostgisService;
 
 public class App {
 
-	@SuppressWarnings("unchecked")
 	@SneakyThrows
 	public static void main(String... args) {
 		var resourcePBH = ResourcesPBH.valueOf(args[0]);
 		
-		var url = "https://ckan.pbh.gov.br/api/3/action/datastore_search?resource_id=".concat(resourcePBH.getResourceId());
-        var request = HttpRequest.newBuilder()
-                .uri(new URI(url))
-                .GET()
-                .build();
-
-        var httpClient = HttpClient.newHttpClient();
-        var response =
-                httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-         System.out.println(new ObjectMapper().readValue(response.body(), resourcePBH.getResponseTypeReference()));
+         var pbhService = new PBHService();
+         
+         BasePbhResponse<PontoOnibus> response = pbhService.getResource(resourcePBH);
+         
+         System.out.println(response);
+         
+         var config = new PostgisConfig("jdbc:postgresql://localhost:15432/bh", "bh", "bh");
+         
+         var postgisService = new PostgisService(config.getConn());
+         
+         postgisService.createDataset(response, PontoOnibus.class);
+         
+//         response.getResult()
+//         	.getRecords()
+//         	.stream()
+//         	.map(p -> postgisService.pointFromEWKT(p.getGeometria()))
+//         	.forEach(System.out::println);
+         
+         
+         config.close();
+         
 	}
 
 }

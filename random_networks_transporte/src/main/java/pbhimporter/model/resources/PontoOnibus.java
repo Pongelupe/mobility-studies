@@ -8,7 +8,7 @@ import lombok.Data;
 public class PontoOnibus {
 
 	@JsonProperty("_id")
-	private String id;
+	private int id;
 	
 	@JsonProperty("ID_PONTO_ONIBUS_LINHA")
 	private String pontoLinhaOnibus;
