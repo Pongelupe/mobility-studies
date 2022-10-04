@@ -3,7 +3,7 @@ package pbhimporter;
 import lombok.SneakyThrows;
 import pbhimporter.configuration.PostgisConfig;
 import pbhimporter.model.BasePbhResponse;
-import pbhimporter.model.resources.PontoOnibus;
+import pbhimporter.model.BaseResult;
 import pbhimporter.resources.ResourcesPBH;
 import pbhimporter.services.PBHService;
 import pbhimporter.services.PostgisService;
@@ -16,7 +16,7 @@ public class App {
 		
          var pbhService = new PBHService();
          
-         BasePbhResponse<PontoOnibus> response = pbhService.getResource(resourcePBH);
+         BasePbhResponse<? extends BaseResult<?>> response = pbhService.getResource(resourcePBH);
          
          System.out.println(response);
          
@@ -24,14 +24,8 @@ public class App {
          
          var postgisService = new PostgisService(config.getConn());
          
-         postgisService.createDataset(response, PontoOnibus.class);
-         
-//         response.getResult()
-//         	.getRecords()
-//         	.stream()
-//         	.map(p -> postgisService.pointFromEWKT(p.getGeometria()))
-//         	.forEach(System.out::println);
-         
+         postgisService.createDataset(response, resourcePBH.getClazz());
+         postgisService.insertRecords(response, resourcePBH.getClazz());
          
          config.close();
          
