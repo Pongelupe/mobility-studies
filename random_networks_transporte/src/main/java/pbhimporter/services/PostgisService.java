@@ -2,6 +2,7 @@ package pbhimporter.services;
 
 import java.lang.reflect.Field;
 import java.sql.Connection;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -9,23 +10,17 @@ import java.util.stream.Stream;
 
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import net.postgis.jdbc.geometry.Point;
 import pbhimporter.components.PBHPostgisFieldResolver;
 import pbhimporter.model.BasePbhResponse;
 import pbhimporter.model.BaseResult;
 
 @RequiredArgsConstructor
 public class PostgisService {
-
+	
 	private final Connection conn;
 	
 	private final PBHPostgisFieldResolver pbhPostgisFieldResolver = new PBHPostgisFieldResolver();
 
-	
-	@SneakyThrows
-	public Point pointFromEWKT(String ewkt) {
-		return new Point(ewkt);
-	}
 	
 	@SneakyThrows
 	public <T> String createDataset(BasePbhResponse<? extends BaseResult<?>> response, Class<T> clazz) {
@@ -51,9 +46,10 @@ public class PostgisService {
 		var s = conn.createStatement();
 		
 		@SuppressWarnings("unchecked")
-		var insertQuery = getSQLInsert((List<T>) response.getResult().getRecords(), clazz);
+		var records = (List<T>) response.getResult().getRecords();
 		
-		s.addBatch(insertQuery);
+		records
+			.forEach(r -> addInsertToBatch(s, r, clazz));
 		
 		var result = s.executeBatch();
 		
@@ -62,8 +58,13 @@ public class PostgisService {
 		return result.length;
 	}
 	
+	@SneakyThrows
+	private <T> void addInsertToBatch(Statement s, T r, Class<T> clazz) {
+		var insertQuery = getSQLInsert(r, clazz);
+		s.addBatch(insertQuery);
+	}
 
-	private <T> String getSQLInsert(List<T> records, Class<T> clazz) {
+	private <T> String getSQLInsert(T record, Class<T> clazz) {
 		var sb = new StringBuilder("INSERT INTO ");
 		sb.append(clazz.getSimpleName());
 		
@@ -73,19 +74,16 @@ public class PostgisService {
 			.collect(Collectors.joining(", ", " (", " ) VALUES "));
 		sb.append(values);
 		
-		var rows = records
-			.stream()
-			.map(obj -> getRow(obj, fields))
-			.collect(Collectors.joining(", ", " (", " )"));
-		
-		sb.append(rows);
+		sb.append(getRow(record, fields));
 		return sb.toString();
 	}
 
 	private <T> String getRow(T obj, List<Field> fields) {
 		return fields
 				.stream()
-				.map(f -> Optional.ofNullable(getFieldValue(obj, f)).map(Object::toString)
+				.map(f -> Optional.ofNullable(getFieldValue(obj, f))
+						.map(value -> "'"
+								+ value.toString().replace("'","") + "'")
 						.orElse("null"))
 				.collect(Collectors.joining(", ", " (", " )"));
 	}
