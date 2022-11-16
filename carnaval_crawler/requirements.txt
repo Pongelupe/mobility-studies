@@ -1,4 +1,4 @@
-scrapy==1.8.0
+scrapy==2.6.2
 psycopg2-binary==2.8.4
 tweepy==3.8.0
 pymongo==3.9.0
