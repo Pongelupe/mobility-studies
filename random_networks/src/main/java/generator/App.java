@@ -1,7 +1,6 @@
 package generator;
 
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 
 import generator.configuration.PostgisConfig;
@@ -33,10 +32,30 @@ public class App {
 				.build());
 		
 		var horarioPartida = getHorarioPartida(registros);
+		var chegada = getRegistroChegada(registros);
 		
 		log.info("horarioPartida: {}", horarioPartida);
+		log.info("horarioChegada: {}", chegada.getDataHora());
+		log.info("distanciaPercorrida: {}", chegada.getDistanciaPercorrida());
+		log.info("veiculo: {}", chegada.getNumeroOrdemVeiculo());
 		
 		config.close();
+	}
+	
+
+	private static RegistroViagem getRegistroChegada(List<RegistroViagem> registros) {
+		var seek = true;
+		var registroViagem = registros.get(0);
+		
+		for (RegistroViagem r : registros) {
+			if (seek && r.getDistanciaPercorrida() >= registroViagem.getDistanciaPercorrida()) {
+				registroViagem = r;
+			} else {
+				seek = false;
+			}
+		}
+		
+		return registroViagem;
 	}
 
 	private static Date getHorarioPartida(List<RegistroViagem> registros) {
@@ -45,7 +64,6 @@ public class App {
 		
 		for (RegistroViagem registroViagem : registros) {
 			if (registroViagem.getDistanciaPercorrida() == 0 && seek) {
-				log.info("horarioPartida old {}, horarioPartida new {}", horarioPartida, registroViagem.getDataHora());
 				horarioPartida = registroViagem.getDataHora();
 			} else {
 				seek = false;
