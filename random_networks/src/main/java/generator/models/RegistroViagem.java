@@ -2,6 +2,8 @@ package generator.models;
 
 import java.util.Date;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,11 +20,13 @@ public class RegistroViagem {
 	
 	private int distanciaPercorrida;
 	
+	@JsonIgnore
 	private Point coord;
 	
 	private int numeroOrdemVeiculo;
 	
 	private int velocidadeInstantanea;
 
+	private int idLinha;
 	
 }

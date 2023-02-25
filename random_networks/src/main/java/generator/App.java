@@ -2,6 +2,9 @@ package generator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import generator.configuration.PostgisConfig;
 import generator.models.RegistroViagem;
@@ -19,32 +22,59 @@ public class App {
 	public static void main(String... args) {
 		var config = new PostgisConfig("jdbc:postgresql://localhost:15432/bh", "bh", "bh");
 		var postgisService = new PostgisService(config.getConn());
+		final var mapper = new ObjectMapper();
 		
-		var registros = postgisService.queryAll("select data_hora, distancia_percorrida, coord, numero_ordem_veiculo, velocidade_instantanea from bh.bh.onibus_tempo_real otr\n"
-				+ "where id_linha = 629\n"
-				+ "and data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'\n"
-				+ "and numero_ordem_veiculo = 20246\n"
-				+ "order by data_hora", rs -> RegistroViagem.builder()
-					.dataHora(rs.getTimestamp(1))
-					.distanciaPercorrida(rs.getInt(2))
-					.coord((Point) ((PGgeometry) rs.getObject(3)).getGeometry())
-					.numeroOrdemVeiculo(rs.getInt(4))
-					.velocidadeInstantanea(rs.getInt(5))
-				.build());
+		var linhas = postgisService.queryAll("select distinct id_linha\n"
+				+ "from bh.bh.onibus_tempo_real otr\n"
+				+ "where "
+				+ "data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'", rs -> rs.getInt(1));
 		
-		var viagens = getViagens(registros);
+		linhas
+		.parallelStream()
+		.map(idLinha -> 
+			postgisService.queryAll("select data_hora, distancia_percorrida, coord, numero_ordem_veiculo, velocidade_instantanea, id_linha from bh.bh.onibus_tempo_real otr\n"
+					+ "where id_linha = " + idLinha
+					+ "\n and data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'\n"
+					+ "order by numero_ordem_veiculo, data_hora", rs -> RegistroViagem.builder()
+						.dataHora(rs.getTimestamp(1))
+						.distanciaPercorrida(rs.getInt(2))
+						.coord((Point) ((PGgeometry) rs.getObject(3)).getGeometry())
+						.numeroOrdemVeiculo(rs.getInt(4))
+						.velocidadeInstantanea(rs.getInt(5))
+						.idLinha(rs.getInt(6))
+					.build())
+		)
+		.forEach(registros ->
+			registros
+			.stream()
+			.collect(Collectors.groupingBy(RegistroViagem::getNumeroOrdemVeiculo))
+			.entrySet()
+			.parallelStream()
+			.map(e -> getViagens(e.getValue()))
+			.sequential()
+			.forEach(viagens ->
+					viagens
+						.forEach(v -> {
+							System.out.println(writeViagemAsString(mapper, v));
+//							log.info("**************");
+//							log.info("veiculo: {}", v.getPartida().getNumeroOrdemVeiculo());
+//							log.info("distanciaPercorrida: {}", v.getDistanciaPercorrida());
+//							log.info("viagem terminada: {}", v.isViagemCompleta());
+//							log.info("pontos: {}", v.getPontosRota().size());
+//							log.info("horarioPartida: {}", v.getPartida().getDataHora());
+//							log.info("horarioChegada: {}", v.isViagemCompleta() ? v.getChegada().getDataHora() : "N/A");
+//							log.info("**************");
+						})
+			)
+		);
 		
-		viagens
-			.forEach(v -> {
-				log.info("veiculo: {}", v.getPartida().getNumeroOrdemVeiculo());
-				log.info("distanciaPercorrida: {}", v.getDistanciaPercorrida());
-				log.info("viagem terminada: {}", v.isViagemCompleta());
-				log.info("pontos: {}", v.getPontosRota().size());
-				log.info("horarioPartida: {}", v.getPartida().getDataHora());
-				log.info("horarioChegada: {}", v.isViagemCompleta() ? v.getChegada().getDataHora() : "N/A");
-			});
 		
 		config.close();
+	}
+	
+	@SneakyThrows
+	private static synchronized String writeViagemAsString(ObjectMapper mapper, Viagem v) {
+		return mapper.writeValueAsString(v) + ",";
 	}
 	
 	private static List<Viagem> getViagens(List<RegistroViagem> registros) {
