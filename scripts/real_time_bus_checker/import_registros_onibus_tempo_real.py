@@ -1,3 +1,4 @@
+import datetime
 import http.client
 import json
 import psycopg2
@@ -17,7 +18,7 @@ res = conn.getresponse()
 data = res.read()
 decoded = json.loads(data.decode("utf-8"))
 
-print(f"{len(decoded)} novos registros")
+print(f"{len(decoded)} novos registros em {datetime.datetime.today()}")
 con = psycopg2.connect(host='localhost', port=15432, database='bh',
             user='bh', password='bh')
 cursor = con.cursor()
@@ -30,7 +31,7 @@ VALUES(%s, TO_TIMESTAMP(%s, 'YYYYMMDDHH24MISS'), ST_MakePoint(%s, %s), %s, %s, %
 for p in decoded:
     if 'NL' in p:
         try:
-            cursor.execute(sql, (p['EV'], p['HR'], p['LT'], p['LG'], p['NV'], p['VL'], p['NL'], get_value_or_default(p, 'DG'), get_value_or_default(p, 'SV'),get_value_or_default(p, 'DT'), ))
+            cursor.execute(sql, (p['EV'], p['HR'], p['LG'], p['LT'], p['NV'], p['VL'], p['NL'], get_value_or_default(p, 'DG'), get_value_or_default(p, 'SV'),get_value_or_default(p, 'DT'), ))
         except:
             print(f"registro sem linha correspondente {p}")
     else:
