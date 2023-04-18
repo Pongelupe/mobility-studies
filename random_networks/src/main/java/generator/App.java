@@ -26,7 +26,7 @@ public class App {
 		
 		var linhas = postgisService.queryAll("select distinct id_linha\n"
 				+ "from bh.bh.onibus_tempo_real otr\n"
-				+ "where "
+				+ "where id_linha = 629 and "
 				+ "data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'", rs -> rs.getInt(1));
 		
 		linhas
@@ -35,6 +35,7 @@ public class App {
 			postgisService.queryAll("select data_hora, distancia_percorrida, coord, numero_ordem_veiculo, velocidade_instantanea, id_linha from bh.bh.onibus_tempo_real otr\n"
 					+ "where id_linha = " + idLinha
 					+ "\n and data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'\n"
+					+ "\n and numero_ordem_veiculo = 20246 "
 					+ "order by numero_ordem_veiculo, data_hora", rs -> RegistroViagem.builder()
 						.dataHora(rs.getTimestamp(1))
 						.distanciaPercorrida(rs.getInt(2))
@@ -55,15 +56,15 @@ public class App {
 			.forEach(viagens ->
 					viagens
 						.forEach(v -> {
-							System.out.println(writeViagemAsString(mapper, v));
-//							log.info("**************");
-//							log.info("veiculo: {}", v.getPartida().getNumeroOrdemVeiculo());
-//							log.info("distanciaPercorrida: {}", v.getDistanciaPercorrida());
-//							log.info("viagem terminada: {}", v.isViagemCompleta());
-//							log.info("pontos: {}", v.getPontosRota().size());
-//							log.info("horarioPartida: {}", v.getPartida().getDataHora());
-//							log.info("horarioChegada: {}", v.isViagemCompleta() ? v.getChegada().getDataHora() : "N/A");
-//							log.info("**************");
+//							System.out.println(writeViagemAsString(mapper, v));
+							log.info("**************");
+							log.info("veiculo: {}", v.getPartida().getNumeroOrdemVeiculo());
+							log.info("distanciaPercorrida: {}", v.getDistanciaPercorrida());
+							log.info("viagem terminada: {}", v.isViagemCompleta());
+							log.info("pontos: {}", v.getRegistros().size());
+							log.info("horarioPartida: {}", v.getPartida().getDataHora());
+							log.info("horarioChegada: {}", v.isViagemCompleta() ? v.getChegada().getDataHora() : "N/A");
+							log.info("**************");
 						})
 			)
 		);
@@ -110,11 +111,11 @@ public class App {
 					partida = registro;
 				}
 				
-				viagem.getPontosRota().add(registro);
+				viagem.getRegistros().add(registro);
 			} else {
 				chegada = anterior;
 				distanciaPercorrida = registro.getDistanciaPercorrida();
-				viagem.getPontosRota().add(registro);
+				viagem.getRegistros().add(registro);
 			}
 			
 			anterior = registro;

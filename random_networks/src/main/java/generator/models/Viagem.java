@@ -24,17 +24,20 @@ public class Viagem {
 	private RegistroViagem chegada;
 	
 	@JsonIgnore
-	private List<RegistroViagem> pontosRota;
+	private List<RegistroViagem> registros;
+	
+	private List<PontoRota> pontos;
 	
 	
 	public Viagem() {
-		this.pontosRota = new ArrayList<>();
+		this.registros = new ArrayList<>();
+		this.pontos = new ArrayList<>();
 	}
 	
 	@JsonIgnore
 	public RegistroViagem getPontoAtual() {
 		return Optional.ofNullable(chegada)
-				.orElseGet(() -> pontosRota.get(pontosRota.size() -1));
+				.orElseGet(() -> registros.get(registros.size() -1));
 	}
 	
 	public int getVeiculo() {
@@ -64,7 +67,7 @@ public class Viagem {
 	}
 	
 	public int getQuantidadeRegistros() {
-		return pontosRota.size();
+		return registros.size();
 	}
 	
 }
