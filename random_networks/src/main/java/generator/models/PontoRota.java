@@ -24,12 +24,15 @@ public class PontoRota {
 	@Builder.Default
 	private List<RegistroViagem> registros =  new ArrayList<>();
 	
+	private boolean calculated;
+	
 	
 	public PontoRota(PontoRota ponto) {
 		this.sequenciaPonto = ponto.getSequenciaPonto();
 		this.idPonto = ponto.getIdPonto();
 		this.coord = ponto.getCoord();
 		this.registros = new ArrayList<>(ponto.getRegistros());
+		this.calculated = ponto.calculated;
 	}
 	
 }

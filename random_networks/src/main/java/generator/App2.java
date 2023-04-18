@@ -1,7 +1,13 @@
 package generator;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.DoubleBinaryOperator;
+import java.util.function.IntBinaryOperator;
+import java.util.function.ToDoubleFunction;
+import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
 
 import generator.configuration.PostgisConfig;
@@ -17,7 +23,7 @@ import net.postgis.jdbc.geometry.Point;
 @Slf4j
 public class App2 {
 	
-	private static final double DISTANCE_THRESHOLD = 0.0015d; // 150m
+	private static final double DISTANCE_THRESHOLD = 0.0005d; // 50m
 	
 
 	@SneakyThrows
@@ -63,7 +69,7 @@ public class App2 {
 			.entrySet()
 //			.parallelStream()
 			.stream()
-			.map(e -> getViagens(rota, e.getValue()))
+			.map(e -> getViagens(e.getValue()))
 			.sequential()
 			.flatMap(List<Viagem>::stream)
 			.filter(v -> v.isViagemCompleta() && v.getDistanciaPercorrida() > 3000) //TODO
@@ -72,41 +78,10 @@ public class App2 {
 		.flatMap(List<Viagem>::stream)
 		.collect(Collectors.toList());
 		
-		viagens9202.forEach(viagem -> {
-			var pontoAtual = 0;
-			var ponto = rota.get(pontoAtual);
-			var registrosPonto = new ArrayList<RegistroViagem>();
-			
-			for (RegistroViagem r : viagem.getRegistros()) {
-				var distancia = r.getCoord().distance(ponto.getCoord());
-				
-				if (distancia <= DISTANCE_THRESHOLD) { // onibus perto do ponto
-					registrosPonto.add(r);
-				} else if (!registrosPonto.isEmpty()) { // passou o ponto
-					viagem.getPontos().add(PontoRota.builder()
-							.sequenciaPonto(ponto.getSequenciaPonto())
-							.idPonto(ponto.getIdPonto())
-							.coord(ponto.getCoord())
-							.registros(registrosPonto)
-							.build());
-					
-					pontoAtual++;
-					registrosPonto = new ArrayList<RegistroViagem>();
-					ponto = rota.get(pontoAtual);
-					
-					distancia = r.getCoord().distance(ponto.getCoord());
-					if (distancia <= DISTANCE_THRESHOLD) { // onibus perto do ponto
-						registrosPonto.add(r);
-					}
-				}else {
-					System.out.println("aaaaaaa");
-				}
-				
-				
-			}
-			
-			
-		});
+		viagens9202
+			.forEach(viagem -> associarPontos(viagem, rota));
+		
+		//TODO importar no qgis
 		
 		viagens9202
 			.forEach(v -> {
@@ -124,8 +99,90 @@ public class App2 {
 		config.close();
 	}
 	
+	private static void associarPontos(Viagem viagem, List<PontoRota> rota) {
+		var registroAtual = 0;
+		
+		for (var ponto : rota) {
+			
+			var menorMaiorDistancia = 0d;
+			var procurando = true;
+			
+			for (var i = registroAtual; i < viagem.getRegistros().size() - 1; i++) {
+				var registro = viagem.getRegistros().get(i);
+				var distancia = registro.getCoord().distance(ponto.getCoord());
+				
+				log.debug("{} - {}", i, registro.getDataHora() + " - " +  distancia);
+				
+				if (distancia <= DISTANCE_THRESHOLD) {
+					ponto.getRegistros().add(registro);
+					registroAtual = i;
+				} else if (!ponto.getRegistros().isEmpty()) {
+					registroAtual = i --;
+					i = viagem.getRegistros().size();
+				} else if (menorMaiorDistancia <= distancia && procurando) {
+					menorMaiorDistancia = distancia;
+					registroAtual++;
+				} else if (menorMaiorDistancia > distancia) {
+					procurando = false;
+				}
+				
+			}
+			
+			if (ponto.getRegistros().isEmpty()) {
+				ponto.setCalculated(true);
+				ponto.getRegistros().add(mergeRegistros(viagem.getRegistros(), registroAtual));
+			}
+			
+			log.info("{} registros para a sequencia {}", 
+					ponto.getRegistros().size(), ponto.getSequenciaPonto());
+			viagem.getPontos().add(new PontoRota(ponto));
+		}
+		
+		rota.forEach(p -> {
+			p.setCalculated(false);
+			p.getRegistros().clear();
+		});
+		
+	}
 	
-	private static List<Viagem> getViagens(List<PontoRota> rota, List<RegistroViagem> registros) {
+	
+	private static RegistroViagem mergeRegistros(List<RegistroViagem> registros, int countRegistro) {
+		var registroAtual = registros.get(countRegistro);
+		var registroSeguinte = registros
+				.stream()
+				.filter(r -> r.getDataHora().after(registroAtual.getDataHora()))
+				.findFirst()
+				.orElse(null);
+		
+		IntBinaryOperator avg = (o1, o2) -> (o1 + o2) / 2;
+		
+		ToDoubleFunction<RegistroViagem> getXCoord = o1 -> o1.getCoord().getX();
+		ToDoubleFunction<RegistroViagem> getYCoord = o1 -> o1.getCoord().getY();
+		DoubleBinaryOperator avgDouble = (o1, o2) -> (o1 + o2) / 2;
+		ToLongBiFunction<Date, Date> avgDate = (o1, o2) -> (o1.getTime() + o2.getTime()) / 2;
+		
+		log.info(countRegistro + " merge registro {}, {}", registroAtual,
+				registroSeguinte);
+		
+		return Optional.ofNullable(registroSeguinte)
+				.map(r -> RegistroViagem
+						.builder()
+						.distanciaPercorrida(avg.applyAsInt(registroAtual.getDistanciaPercorrida(), 
+								registroSeguinte.getDistanciaPercorrida()))
+						.dataHora(new Date(avgDate.applyAsLong(registroAtual.getDataHora(), registroSeguinte.getDataHora())))
+						.coord(new Point(avgDouble.applyAsDouble(getXCoord.applyAsDouble(registroAtual), getXCoord.applyAsDouble(registroSeguinte)), 
+								avgDouble.applyAsDouble(getYCoord.applyAsDouble(registroAtual), getYCoord.applyAsDouble(registroSeguinte)),
+								r.getCoord().getZ()))
+						.numeroOrdemVeiculo(r.getNumeroOrdemVeiculo())
+						.velocidadeInstantanea(avg.applyAsInt(registroAtual.getVelocidadeInstantanea(), 
+								registroSeguinte.getVelocidadeInstantanea()))
+						.idLinha(r.getIdLinha())						
+					.build())
+				.orElse(registroAtual);
+	}
+
+
+	private static List<Viagem> getViagens(List<RegistroViagem> registros) {
 		var viagens = new ArrayList<Viagem>();
 		var viagem = new Viagem();
 		
@@ -133,9 +190,6 @@ public class App2 {
 		RegistroViagem partida = null;
 		RegistroViagem chegada = null;
 		RegistroViagem anterior = null;
-		
-		var pontoAtual = 0;
-		var ponto = rota.get(pontoAtual);
 		
 		
 		for (RegistroViagem registro : registros) {
@@ -151,8 +205,6 @@ public class App2 {
 					
 					viagem = new Viagem();
 					distanciaPercorrida = 0;
-					pontoAtual = 0;
-					ponto = rota.get(pontoAtual);
 					partida = null;
 					chegada = null;
 				} else {
@@ -166,21 +218,11 @@ public class App2 {
 				
 				viagem.getRegistros().add(registro);
 				
-				if (registroPassandoPeloPonto(registro, ponto)) { // passando pelo ponto
-					ponto.getRegistros().add(registro);
-				} else if (!ponto.getRegistros().isEmpty() && pontoAtual < rota.size()) {
-					viagem.getPontos().add(new PontoRota(ponto));
-					ponto.getRegistros().clear();
-					pontoAtual++;
-					ponto = rota.get(pontoAtual);
-				} 
-				
 			} else {
 				// terminou uma rota
 				chegada = anterior;
 				distanciaPercorrida = registro.getDistanciaPercorrida();
 				viagem.getRegistros().add(registro);
-				viagem.getPontos().add(ponto);
 			}
 			
 			anterior = registro;
@@ -192,14 +234,6 @@ public class App2 {
 		
 		
 		return viagens;
-	}
-
-
-	private static boolean registroPassandoPeloPonto(RegistroViagem registro, PontoRota ponto) {
-		var coordRegistro = registro.getCoord();
-		var coordPonto = ponto.getCoord();
-		
-		return coordRegistro.distance(coordPonto) <= DISTANCE_THRESHOLD;
 	}
 
 }
