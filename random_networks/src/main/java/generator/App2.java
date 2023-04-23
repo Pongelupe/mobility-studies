@@ -1,5 +1,7 @@
 package generator;
 
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -15,6 +17,8 @@ import generator.models.PontoRota;
 import generator.models.RegistroViagem;
 import generator.models.Viagem;
 import generator.services.PostgisService;
+import io.jenetics.jpx.GPX;
+import io.jenetics.jpx.WayPoint;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.postgis.jdbc.PGgeometry;
@@ -79,9 +83,38 @@ public class App2 {
 		.collect(Collectors.toList());
 		
 		viagens9202
-			.forEach(viagem -> associarPontos(viagem, rota));
+			.forEach(viagem -> {
+				associarPontos(viagem, rota);
+				
+				
+				final GPX gpx = GPX.builder()
+					    .addTrack(track ->
+							track
+							    .addSegment(segment ->
+							    	viagem.getPontos()
+							    	.stream()
+							    	.map(PontoRota::getRegistros)
+							    	.flatMap(List<RegistroViagem>::stream)
+							    	.map(RegistroViagem::getCoord)
+							    	.map(p -> WayPoint.builder()
+							    			.lat(p.getX())
+							    			.lon(p.getY())
+							    			.build())
+							    	.forEach(segment::addPoint)))
+					    .build();
+				
+				try {
+					var filename = viagem.getIdLinha() + "_"
+							+ viagem.getPartida().getDataHora()
+							+ ".gpx";
+					
+					GPX.write(gpx, Paths.get("./" + filename));
+				} catch (IOException e1) {
+					e1.printStackTrace();
+				}
+				
+			});
 		
-		//TODO importar no qgis
 		
 		viagens9202
 			.forEach(v -> {
