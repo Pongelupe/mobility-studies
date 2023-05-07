@@ -7,6 +7,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.DoubleBinaryOperator;
+import java.util.function.Function;
 import java.util.function.IntBinaryOperator;
 import java.util.function.ToDoubleFunction;
 import java.util.function.ToLongBiFunction;
@@ -34,30 +35,41 @@ public class App2 {
 	public static void main(String... args) {
 		var config = new PostgisConfig("jdbc:postgresql://localhost:15432/bh", "bh", "bh");
 		var postgisService = new PostgisService(config.getConn());
-		var rota = postgisService.queryAll("select st.stop_sequence, s.stop_id, ST_SetSRID(ST_MakePoint(ST_Y(s.the_geom),ST_X(s.the_geom)), 4326) from gtfs.stop_times st \n"
-				+ "join gtfs.stops s on s.stop_id = st.stop_id \n"
-				+ "where st.trip_id = '9202  031080602110' order by 1", rs -> {
-					return PontoRota.builder()
+		
+		var queryRota = """
+				select st.stop_sequence, s.stop_id, ST_SetSRID(ST_MakePoint(ST_Y(s.the_geom),ST_X(s.the_geom)), 4326) from gtfs.stop_times st
+				join gtfs.stops s on s.stop_id = st.stop_id 
+				where st.trip_id = '9202  031080602110' order by 1
+				""";
+		var rota = postgisService.queryAll(queryRota, rs ->
+					PontoRota.builder()
 					.sequenciaPonto(rs.getInt(1))
 					.idPonto(rs.getString(2))
 					.coord((Point) ((PGgeometry) rs.getObject(3)).getGeometry())
-					.build();
-				});
+					.build()
+				);
 		
 		
-		var linhas = postgisService.queryAll("select distinct id_linha\n"
-				+ "from bh.bh.onibus_tempo_real otr\n"
-				+ "where id_linha = 629 and "
-				+ "data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'", rs -> rs.getInt(1));
+		var queryLinhas = """
+				select distinct id_linha from bh.bh.onibus_tempo_real otr 
+				where id_linha = 629 
+				and data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'
+				""";
+		var linhas = postgisService.queryAll(queryLinhas, rs -> rs.getInt(1));
+		
+		var queryRegistrosLinha = """
+				select data_hora, distancia_percorrida, coord, numero_ordem_veiculo, velocidade_instantanea, id_linha from bh.bh.onibus_tempo_real otr 
+				where id_linha = %d 
+				and numero_ordem_veiculo = 20481
+				and data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00' 
+				order by numero_ordem_veiculo, data_hora
+				""";
 		
 		var viagens9202 = linhas
-		.parallelStream()
-		.map(idLinha -> 
-			postgisService.queryAll("select data_hora, distancia_percorrida, coord, numero_ordem_veiculo, velocidade_instantanea, id_linha from bh.bh.onibus_tempo_real otr\n"
-					+ "where id_linha = " + idLinha
-					+ "\n and data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'\n"
-					+ "\n and numero_ordem_veiculo = 20246 "
-					+ "order by numero_ordem_veiculo, data_hora", rs -> RegistroViagem.builder()
+		.stream()
+		.map(queryRegistrosLinha::formatted)
+		.map(query -> 
+			postgisService.queryAll(query, rs -> RegistroViagem.builder()
 						.dataHora(rs.getTimestamp(1))
 						.distanciaPercorrida(rs.getInt(2))
 						.coord((Point) ((PGgeometry) rs.getObject(3)).getGeometry())
@@ -77,38 +89,45 @@ public class App2 {
 			.sequential()
 			.flatMap(List<Viagem>::stream)
 			.filter(v -> v.isViagemCompleta() && v.getDistanciaPercorrida() > 3000) //TODO
-			.collect(Collectors.toList())
+			.toList()
 		)
 		.flatMap(List<Viagem>::stream)
-		.collect(Collectors.toList());
+		.toList();
 		
 		viagens9202
 			.forEach(viagem -> {
 				associarPontos(viagem, rota);
 				
+				Function<RegistroViagem, WayPoint> registro2Waypoint = p ->
+				WayPoint.builder()
+	    			.lat(p.getCoord().getX())
+	    			.lon(p.getCoord().getY())
+	    			.build();
+				Function<List<WayPoint>, GPX> waypoints2GPX = w -> GPX.builder()
+						.wayPoints(w)
+						.build();
 				
-				final GPX gpx = GPX.builder()
-					    .addTrack(track ->
-							track
-							    .addSegment(segment ->
-							    	viagem.getPontos()
-							    	.stream()
-							    	.map(PontoRota::getRegistros)
-							    	.flatMap(List<RegistroViagem>::stream)
-							    	.map(RegistroViagem::getCoord)
-							    	.map(p -> WayPoint.builder()
-							    			.lat(p.getX())
-							    			.lon(p.getY())
-							    			.build())
-							    	.forEach(segment::addPoint)))
-					    .build();
+				var waypointsPontos = viagem.getPontos()
+				    	.stream()
+				    	.map(PontoRota::getRegistros)
+				    	.flatMap(List<RegistroViagem>::stream)
+				    	.map(registro2Waypoint::apply)
+				    	.toList();
+				
+				var waypointsRegistros = viagem.getRegistros()
+						.stream()
+						.map(registro2Waypoint::apply)
+						.toList();
+				
 				
 				try {
-					var filename = viagem.getIdLinha() + "_"
+					var filename = viagem.getVeiculo() + "_" +
+							viagem.getIdLinha() + "_"
 							+ viagem.getPartida().getDataHora()
 							+ ".gpx";
 					
-					GPX.write(gpx, Paths.get("./" + filename));
+					GPX.write(waypoints2GPX.apply(waypointsPontos), Paths.get("./" + "pontos_" + filename));
+					GPX.write(waypoints2GPX.apply(waypointsRegistros), Paths.get("./" + "registros_" +filename));
 				} catch (IOException e1) {
 					e1.printStackTrace();
 				}
@@ -135,24 +154,31 @@ public class App2 {
 	private static void associarPontos(Viagem viagem, List<PontoRota> rota) {
 		var registroAtual = 0;
 		
-		for (var ponto : rota) {
+//		for (var ponto : rota) {
+		for (var pontoAtual = 0; pontoAtual < rota.size() - 1; pontoAtual++) {
+			var ponto = rota.get(pontoAtual);
 			
-			var menorMaiorDistancia = 0d;
+			var registrosPontoAnterior = pontoAtual > 0 ? rota.get(pontoAtual -1) : null;
+			var menorMaiorDistancia = registrosPontoAnterior != null
+					? registrosPontoAnterior.getDistance(): 0d;
 			var procurando = true;
+			var direcaoPonto = rota.size() / 2 >= ponto.getSequenciaPonto();
 			
 			for (var i = registroAtual; i < viagem.getRegistros().size() - 1; i++) {
 				var registro = viagem.getRegistros().get(i);
 				var distancia = registro.getCoord().distance(ponto.getCoord());
+
+				var direcaoregistro = viagem.getRegistros().size() / 2 >= i;
 				
-				log.debug("{} - {}", i, registro.getDataHora() + " - " +  distancia);
-				
-				if (distancia <= DISTANCE_THRESHOLD) {
+				if (distancia <= DISTANCE_THRESHOLD && direcaoPonto == direcaoregistro) {
 					ponto.getRegistros().add(registro);
+					ponto.setDistance(distancia);
 					registroAtual = i;
+					menorMaiorDistancia = distancia;
 				} else if (!ponto.getRegistros().isEmpty()) {
-					registroAtual = i --;
+					registroAtual = i - 1;
 					i = viagem.getRegistros().size();
-				} else if (menorMaiorDistancia <= distancia && procurando) {
+				} else if (menorMaiorDistancia < distancia && procurando) {
 					menorMaiorDistancia = distancia;
 					registroAtual++;
 				} else if (menorMaiorDistancia > distancia) {
@@ -163,12 +189,15 @@ public class App2 {
 			
 			if (ponto.getRegistros().isEmpty()) {
 				ponto.setCalculated(true);
-				ponto.getRegistros().add(mergeRegistros(viagem.getRegistros(), registroAtual));
+				var registroMerged = mergeRegistros(viagem.getRegistros(), registroAtual);
+				ponto.getRegistros().add(registroMerged);
+				ponto.setDistance(registroMerged.getCoord().distance(ponto.getCoord()));
 			}
 			
 			log.info("{} registros para a sequencia {}", 
 					ponto.getRegistros().size(), ponto.getSequenciaPonto());
 			viagem.getPontos().add(new PontoRota(ponto));
+			registroAtual = ponto.isCalculated() ? registroAtual : viagem.getRegistros().indexOf(ponto.getRegistros().get(ponto.getRegistros().size() - 1));
 		}
 		
 		rota.forEach(p -> {
@@ -198,19 +227,23 @@ public class App2 {
 				registroSeguinte);
 		
 		return Optional.ofNullable(registroSeguinte)
-				.map(r -> RegistroViagem
-						.builder()
-						.distanciaPercorrida(avg.applyAsInt(registroAtual.getDistanciaPercorrida(), 
-								registroSeguinte.getDistanciaPercorrida()))
-						.dataHora(new Date(avgDate.applyAsLong(registroAtual.getDataHora(), registroSeguinte.getDataHora())))
-						.coord(new Point(avgDouble.applyAsDouble(getXCoord.applyAsDouble(registroAtual), getXCoord.applyAsDouble(registroSeguinte)), 
-								avgDouble.applyAsDouble(getYCoord.applyAsDouble(registroAtual), getYCoord.applyAsDouble(registroSeguinte)),
-								r.getCoord().getZ()))
-						.numeroOrdemVeiculo(r.getNumeroOrdemVeiculo())
-						.velocidadeInstantanea(avg.applyAsInt(registroAtual.getVelocidadeInstantanea(), 
-								registroSeguinte.getVelocidadeInstantanea()))
-						.idLinha(r.getIdLinha())						
-					.build())
+				.map(r -> {
+					var point = new Point(avgDouble.applyAsDouble(getXCoord.applyAsDouble(registroAtual), getXCoord.applyAsDouble(registroSeguinte)), 
+							avgDouble.applyAsDouble(getYCoord.applyAsDouble(registroAtual), getYCoord.applyAsDouble(registroSeguinte)),
+							r.getCoord().getZ());
+					point.dimension = r.getCoord().dimension;
+					return RegistroViagem
+							.builder()
+							.distanciaPercorrida(avg.applyAsInt(registroAtual.getDistanciaPercorrida(), 
+									registroSeguinte.getDistanciaPercorrida()))
+							.dataHora(new Date(avgDate.applyAsLong(registroAtual.getDataHora(), registroSeguinte.getDataHora())))
+							.coord(point)
+							.numeroOrdemVeiculo(r.getNumeroOrdemVeiculo())
+							.velocidadeInstantanea(avg.applyAsInt(registroAtual.getVelocidadeInstantanea(), 
+									registroSeguinte.getVelocidadeInstantanea()))
+							.idLinha(r.getIdLinha())						
+						.build();
+				})
 				.orElse(registroAtual);
 	}
 

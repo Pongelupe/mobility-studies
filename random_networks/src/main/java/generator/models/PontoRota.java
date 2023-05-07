@@ -26,6 +26,8 @@ public class PontoRota {
 	
 	private boolean calculated;
 	
+	private Double distance;
+	
 	
 	public PontoRota(PontoRota ponto) {
 		this.sequenciaPonto = ponto.getSequenciaPonto();
@@ -33,6 +35,7 @@ public class PontoRota {
 		this.coord = ponto.getCoord();
 		this.registros = new ArrayList<>(ponto.getRegistros());
 		this.calculated = ponto.calculated;
+		this.distance = ponto.getDistance();
 	}
 	
 }
