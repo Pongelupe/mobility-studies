@@ -3,6 +3,7 @@ package generator;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -97,6 +98,11 @@ public class App2 {
 		viagens9202
 			.forEach(viagem -> {
 				associarPontos(viagem, rota);
+				completarPontosFaltando(viagem, rota);
+				rota.forEach(p -> {
+					p.setCalculated(false);
+					p.getRegistros().clear();
+				});
 				
 				Function<RegistroViagem, WayPoint> registro2Waypoint = p ->
 				WayPoint.builder()
@@ -151,26 +157,93 @@ public class App2 {
 		config.close();
 	}
 	
+	private static void completarPontosFaltando(Viagem viagem, List<PontoRota> rota) {
+		var pontoFaltantes = rota
+		.stream()
+		.parallel()
+		.filter(e -> e.getRegistros().isEmpty())
+		.toList();
+		
+		for (var pontoFaltante : pontoFaltantes) {
+			var indexPonto = pontoFaltante.getSequenciaPonto();
+			var indexMaxRegistroPontoAnterior = getIndexMaxRegistroPontoAnterior(rota, indexPonto);
+			var indexMinRegistroPontoSeguinte = getIndexMinRegistroPontoSeguinte(rota, indexPonto)
+					.orElse(indexMaxRegistroPontoAnterior);
+			
+			var registrosCandidatos = viagem
+				.getRegistros()
+				.subList(indexMaxRegistroPontoAnterior, indexMinRegistroPontoSeguinte + 1)
+				.stream()
+				.sorted(Comparator.comparingDouble(r -> r.getCoord().distance(pontoFaltante.getCoord())))
+				.distinct()
+				.toList();
+			
+			var registroMerged = mergeRegistros(registrosCandidatos.get(0), 
+					registrosCandidatos.get(registrosCandidatos.size() > 1 ? 1 : 0));
+			
+			var ponto = viagem.getPontos().get(indexPonto - 1);
+			
+			ponto.getRegistros().add(registroMerged);
+			ponto.setCalculated(true);
+		}
+		
+		
+	}
+
+	private static Optional<Integer> getIndexMinRegistroPontoSeguinte(List<PontoRota> rota, int i) {
+		return rota
+				.stream()
+				.parallel()
+				.filter(e -> !e.getRegistros().isEmpty())
+				.filter(e -> e.getSequenciaPonto() > i)
+				.min(Comparator.comparingInt(e -> e.getSequenciaPonto()))
+				.map(p -> p.getRegistros()
+						.stream()
+						.min(Comparator.comparing(RegistroViagem::getDataHora))
+						.map(RegistroViagem::getIndex)
+						.get())
+				;
+	}
+	
+	private static int getIndexMaxRegistroPontoAnterior(List<PontoRota> rota, int i) {
+		return rota
+				.stream()
+				.parallel()
+				.filter(e -> !e.getRegistros().isEmpty())
+				.filter(e -> e.getSequenciaPonto() < i)
+				.max(Comparator.comparingInt(e -> e.getSequenciaPonto()))
+				.orElse(rota.get(0))
+				.getRegistros()
+				.stream()
+				.max(Comparator.comparing(RegistroViagem::getDataHora))
+				.orElseThrow()
+				.getIndex();
+	}
+
 	private static void associarPontos(Viagem viagem, List<PontoRota> rota) {
 		var registroAtual = 0;
 		
-//		for (var ponto : rota) {
-		for (var pontoAtual = 0; pontoAtual < rota.size() - 1; pontoAtual++) {
+		for (var pontoAtual = 0; pontoAtual < rota.size(); pontoAtual++) {
 			var ponto = rota.get(pontoAtual);
 			
 			var registrosPontoAnterior = pontoAtual > 0 ? rota.get(pontoAtual -1) : null;
 			var menorMaiorDistancia = registrosPontoAnterior != null
-					? registrosPontoAnterior.getDistance(): 0d;
+					? registrosPontoAnterior.getCoord().distance(ponto.getCoord()): 0d;
 			var procurando = true;
 			var direcaoPonto = rota.size() / 2 >= ponto.getSequenciaPonto();
+			
+			var distanciaPercorridaViagem = viagem.getDistanciaPercorrida();
 			
 			for (var i = registroAtual; i < viagem.getRegistros().size() - 1; i++) {
 				var registro = viagem.getRegistros().get(i);
 				var distancia = registro.getCoord().distance(ponto.getCoord());
 
-				var direcaoregistro = viagem.getRegistros().size() / 2 >= i;
+				var direcaoregistro = distanciaPercorridaViagem / 2 >= registro.getDistanciaPercorrida();
 				
-				if (distancia <= DISTANCE_THRESHOLD && direcaoPonto == direcaoregistro) {
+				if (distancia <= DISTANCE_THRESHOLD && 
+						((direcaoPonto == direcaoregistro)
+								|| (ponto.getRegistros().isEmpty() && !direcaoPonto))) {
+					registro.setIndex(i);
 					ponto.getRegistros().add(registro);
 					ponto.setDistance(distancia);
 					registroAtual = i;
@@ -187,34 +260,14 @@ public class App2 {
 				
 			}
 			
-			if (ponto.getRegistros().isEmpty()) {
-				ponto.setCalculated(true);
-				var registroMerged = mergeRegistros(viagem.getRegistros(), registroAtual);
-				ponto.getRegistros().add(registroMerged);
-				ponto.setDistance(registroMerged.getCoord().distance(ponto.getCoord()));
-			}
-			
 			log.info("{} registros para a sequencia {}", 
 					ponto.getRegistros().size(), ponto.getSequenciaPonto());
 			viagem.getPontos().add(new PontoRota(ponto));
-			registroAtual = ponto.isCalculated() ? registroAtual : viagem.getRegistros().indexOf(ponto.getRegistros().get(ponto.getRegistros().size() - 1));
 		}
-		
-		rota.forEach(p -> {
-			p.setCalculated(false);
-			p.getRegistros().clear();
-		});
-		
 	}
 	
 	
-	private static RegistroViagem mergeRegistros(List<RegistroViagem> registros, int countRegistro) {
-		var registroAtual = registros.get(countRegistro);
-		var registroSeguinte = registros
-				.stream()
-				.filter(r -> r.getDataHora().after(registroAtual.getDataHora()))
-				.findFirst()
-				.orElse(null);
+	private static RegistroViagem mergeRegistros(RegistroViagem registroAtual, RegistroViagem registroSeguinte) {
 		
 		IntBinaryOperator avg = (o1, o2) -> (o1 + o2) / 2;
 		
@@ -223,7 +276,7 @@ public class App2 {
 		DoubleBinaryOperator avgDouble = (o1, o2) -> (o1 + o2) / 2;
 		ToLongBiFunction<Date, Date> avgDate = (o1, o2) -> (o1.getTime() + o2.getTime()) / 2;
 		
-		log.info(countRegistro + " merge registro {}, {}", registroAtual,
+		log.info(" merge registro {}, {}", registroAtual,
 				registroSeguinte);
 		
 		return Optional.ofNullable(registroSeguinte)
@@ -241,7 +294,8 @@ public class App2 {
 							.numeroOrdemVeiculo(r.getNumeroOrdemVeiculo())
 							.velocidadeInstantanea(avg.applyAsInt(registroAtual.getVelocidadeInstantanea(), 
 									registroSeguinte.getVelocidadeInstantanea()))
-							.idLinha(r.getIdLinha())						
+							.idLinha(r.getIdLinha())
+							.index(-1)
 						.build();
 				})
 				.orElse(registroAtual);

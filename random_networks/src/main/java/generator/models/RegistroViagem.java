@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import net.postgis.jdbc.geometry.Point;
 
@@ -14,6 +15,7 @@ import net.postgis.jdbc.geometry.Point;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@EqualsAndHashCode
 public class RegistroViagem {
 
 	private Date dataHora;
@@ -28,5 +30,8 @@ public class RegistroViagem {
 	private int velocidadeInstantanea;
 
 	private int idLinha;
+	
+	@JsonIgnore
+	private int index;
 	
 }
