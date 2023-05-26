@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import generator.configuration.PostgisConfig;
 import generator.models.RegistroViagem;
 import generator.models.Viagem;
-import generator.services.PostgisService;
+import generator.services.QueryExecutor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import net.postgis.jdbc.PGgeometry;
@@ -21,7 +21,7 @@ public class App {
 	@SneakyThrows
 	public static void main(String... args) {
 		var config = new PostgisConfig("jdbc:postgresql://localhost:15432/bh", "bh", "bh");
-		var postgisService = new PostgisService(config.getConn());
+		var postgisService = new QueryExecutor(config.getConn());
 		final var mapper = new ObjectMapper();
 		
 		var linhas = postgisService.queryAll("select distinct id_linha\n"

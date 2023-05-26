@@ -19,7 +19,7 @@ import generator.models.PontoRota;
 import generator.models.RegistroViagem;
 import generator.models.Rota;
 import generator.models.Viagem;
-import generator.services.PostgisService;
+import generator.services.QueryExecutor;
 import io.jenetics.jpx.GPX;
 import io.jenetics.jpx.Route;
 import io.jenetics.jpx.WayPoint;
@@ -37,7 +37,7 @@ public class App3 {
 	@SneakyThrows
 	public static void main(String... args) {
 		var config = new PostgisConfig("jdbc:postgresql://localhost:15432/bh", "bh", "bh");
-		var postgisService = new PostgisService(config.getConn());
+		var postgisService = new QueryExecutor(config.getConn());
 		
 		var queryRota = """
 				with routes as(
