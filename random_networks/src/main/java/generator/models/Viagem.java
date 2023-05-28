@@ -23,7 +23,6 @@ public class Viagem {
 	@JsonIgnore
 	private RegistroViagem chegada;
 	
-	@JsonIgnore
 	private List<RegistroViagem> registros;
 	
 	private List<PontoRota> pontos;
@@ -56,18 +55,25 @@ public class Viagem {
 		return getPontoAtual().getDistanciaPercorrida();
 	}
 	
-	@JsonFormat(pattern = "dd/MM/yyyy HH:mm")
+	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss")
 	public Date getHorarioPartida() {
 		return partida.getDataHora();
 	}
 	
-	@JsonFormat(pattern = "dd/MM/yyyy HH:mm")
+	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss")
 	public Date getHorarioChegada() {
 		return isViagemCompleta() ? getChegada().getDataHora() : null;
 	}
 	
 	public int getQuantidadeRegistros() {
 		return registros.size();
+	}
+	
+	@JsonIgnore
+	public boolean isAnyNotCalculated() {
+		return pontos
+				.stream()
+				.anyMatch(e -> !e.isCalculated());
 	}
 	
 }

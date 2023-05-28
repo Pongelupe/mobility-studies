@@ -13,7 +13,7 @@ public class TripRouteAssociator {
 
 	private final TripMissingEntriesGenerator missingEntriesGenerator;
 	
-	public void associate(Viagem viagem, List<PontoRota> rota) {
+	public Viagem associate(Viagem viagem, List<PontoRota> rota) {
 		associateTripToRoute(viagem, rota);
 		missingEntriesGenerator.generateMissingEntries(viagem, rota);
 		
@@ -21,6 +21,8 @@ public class TripRouteAssociator {
 			p.setCalculated(false);
 			p.getRegistros().clear();
 		});
+		
+		return viagem;
 	}
 	
 	private void associateTripToRoute(Viagem viagem, List<PontoRota> rota) {

@@ -3,8 +3,8 @@ package generator.services;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.IntFunction;
-import java.util.function.UnaryOperator;
+import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 
 import generator.models.RegistroViagem;
@@ -15,26 +15,26 @@ import net.postgis.jdbc.geometry.Point;
 @RequiredArgsConstructor
 public class RTService {
 	
-	private static final IntFunction<String> QUERY__ENTRIES_BUSLINE = """
+	private static final BiFunction<Integer, String, String> QUERY__ENTRIES_BUSLINE = """
 			select data_hora, distancia_percorrida, coord, numero_ordem_veiculo, velocidade_instantanea, id_linha from bh.bh.onibus_tempo_real otr 
-			where id_linha = %d 
-			and data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00' 
+			where id_linha = %1$d 
+			and data_hora between '%2$s 6:00:00' and '%2$s 23:59:00' 
 			order by numero_ordem_veiculo, data_hora
 			"""::formatted;
 	
-	private static final UnaryOperator<String> QUERY_LINES = """
+	private static final BinaryOperator<String> QUERY_LINES = """
 			select id_linha from bh.bh.onibus_tempo_real otr 
-			where id_linha in (select id_linha  from linha_onibus otr where codigo_linha like '%s%%')
-			and data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'
+			where id_linha in (select id_linha  from linha_onibus otr where codigo_linha like '%1$s%%')
+			and data_hora between '%2$s 6:00:00' and '%2$s 23:59:00'
 			"""::formatted;
 
 	private final QueryExecutor queryExecutor;
 		
-	public Map<Integer, Map<Integer, List<RegistroViagem>>> getEntriesbyBusLine(String headSign) {
-		return queryExecutor.queryAllSet(QUERY_LINES.apply(headSign), rs -> rs.getInt(1))
+	public Map<Integer, Map<Integer, List<RegistroViagem>>> getEntriesbyBusLine(String headSign, String date) {
+		return queryExecutor.queryAllSet(QUERY_LINES.apply(headSign, date), rs -> rs.getInt(1))
 			.stream()
 			.map(line -> 
-			Map.of(line, queryExecutor.queryAll(QUERY__ENTRIES_BUSLINE.apply(line), rs -> RegistroViagem.builder()
+			Map.of(line, queryExecutor.queryAll(QUERY__ENTRIES_BUSLINE.apply(line, date), rs -> RegistroViagem.builder()
 						.dataHora(rs.getTimestamp(1))
 						.distanciaPercorrida(rs.getInt(2))
 						.coord((Point) ((PGgeometry) rs.getObject(3)).getGeometry())

@@ -1,90 +1,88 @@
 package generator;
 
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Date;
+import java.io.File;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.function.DoubleBinaryOperator;
-import java.util.function.Function;
-import java.util.function.IntBinaryOperator;
-import java.util.function.ToDoubleFunction;
-import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import generator.algorithms.EntryMerger;
+import generator.algorithms.TripMissingEntriesGenerator;
+import generator.algorithms.TripRouteAssociator;
+import generator.algorithms.TripsExtractor;
 import generator.configuration.PostgisConfig;
 import generator.models.PontoRota;
 import generator.models.RegistroViagem;
-import generator.models.Rota;
 import generator.models.Viagem;
+import generator.services.GTFSService;
 import generator.services.QueryExecutor;
-import io.jenetics.jpx.GPX;
-import io.jenetics.jpx.Route;
-import io.jenetics.jpx.WayPoint;
+import generator.services.RTService;
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import net.postgis.jdbc.PGgeometry;
-import net.postgis.jdbc.geometry.Point;
 
-@Slf4j
 public class App3 {
 	
-	private static final double DISTANCE_THRESHOLD = 0.0005d; // 50m
-	
+	record LineTripRecord(String line, List<Viagem> trips) {}
 
+	record RouteRecord(String headsign, List<PontoRota> route, Double length) {}
+	
 	@SneakyThrows
 	public static void main(String... args) {
 		var config = new PostgisConfig("jdbc:postgresql://localhost:15432/bh", "bh", "bh");
-		var postgisService = new QueryExecutor(config.getConn());
+		var queryExecutor = new QueryExecutor(config.getConn());
 		
-		var queryRota = """
-				with routes as(
-select distinct  t.route_id  from gtfs.stop_times st 
-join gtfs.trips t on t.trip_id = st.trip_id 
-where st.stop_id = '00102112100323')
-select st.trip_id, st.stop_sequence, s.stop_id, s.the_geom from gtfs.stop_times st
-				join gtfs.stops s on s.stop_id = st.stop_id 
-				where st.trip_id in (
-select (select trip_id from gtfs.trips t where t.route_id = r.route_id limit 1) as a from routes r)
-order by 1,2
-				""";
-		postgisService.queryAll(queryRota, rs ->
-					Rota.builder()
-					.tripId(rs.getString(1))
-					.stopSequence(rs.getInt(2))
-					.stopId(rs.getString(3))
-					.coord((Point) ((PGgeometry) rs.getObject(4)).getGeometry())
-					.build()
+		var tripExtractor = new TripsExtractor();
+		var tripMissingEntriesGenerator = new TripMissingEntriesGenerator(new EntryMerger());
+		var tripRouteAssociator = new TripRouteAssociator(tripMissingEntriesGenerator);
+		
+		var gtfsService = new GTFSService(queryExecutor);
+		var rtService = new RTService(queryExecutor);
+		
+		var routesRrecords = Stream.of("9202"
+				, "9204", "8208", "8203", "4150", "2103", "9210", "2104", "2102", "2101"
 				)
-				.stream()
-				.collect(Collectors.groupingBy(Rota::getTripId))
-				.entrySet()
-				.stream()
-				.collect(Collectors.toMap(Entry<String, List<Rota>>::getKey, e -> Route.of(e
-						.getValue()
-						.stream()
-						.map(p -> WayPoint.builder()
-								.lat(p.getCoord().getY())
-								.lon(p.getCoord().getX())
-								.build())
-						.toList())))
-				.forEach((k, v) -> {
-					var gpx = GPX.builder()
-							.addRoute(v)
-							.build();
-					try {
-						GPX.write(gpx, Paths.get("./rotas_ponto_00102112100323/" + k.replace(" ", "_") + ".gpx"));
-					} catch (IOException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					}
-					
-				});
+		.parallel()
+		.map(headsign -> new RouteRecord(headsign, 
+				gtfsService.getRouteFromBusHeadsign(headsign),
+				gtfsService.getRouteLength(headsign)))
+		.toList();
 		
+		Map<String, List<LineTripRecord>> tripsPerWeekdays = List.of("2022-12-14", "2022-12-15", "2022-12-16", "2022-12-19", "2022-12-20")
+			.parallelStream()
+			.collect(Collectors.toMap(d -> d, date ->
+				routesRrecords
+				.stream()
+				.map(entry -> {
+					var entriesbyBusLine = rtService.getEntriesbyBusLine(entry.headsign(), date);
+					var t = entriesbyBusLine
+							.entrySet()
+							.stream()
+							.parallel()
+							.map(Entry<Integer, Map<Integer, List<RegistroViagem>>>::getValue)
+							.map(e -> e.entrySet().stream().map(Entry<Integer, List<RegistroViagem>>::getValue).toList())
+							.flatMap(List<List<RegistroViagem>>::stream)
+							.map(tripExtractor::extract)
+							.sequential()
+							.flatMap(List<Viagem>::stream)
+							.filter(Viagem::isViagemCompleta)
+							.filter(v -> entry.length() * 0.7 <= v.getDistanciaPercorrida())
+							.sorted((o1, o2) -> o1.getHorarioPartida().compareTo(o2.getHorarioPartida()))
+							.map(trip -> tripRouteAssociator.associate(trip, entry.route()))
+							.filter(Viagem::isAnyNotCalculated)
+							.toList()
+							;
+					
+					return new LineTripRecord(entry.headsign(), t);
+				})
+				.toList()));
+		
+		var mapper = new ObjectMapper();
+		mapper.writeValue(new File("./tripsPerWeekdays.json"), tripsPerWeekdays);
+			
 		
 		config.close();
 	}
-	
+
 }
