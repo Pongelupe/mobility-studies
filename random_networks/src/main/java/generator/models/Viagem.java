@@ -17,10 +17,8 @@ import lombok.Data;
 @Builder
 public class Viagem {
 
-	@JsonIgnore
 	private RegistroViagem partida;
 
-	@JsonIgnore
 	private RegistroViagem chegada;
 	
 	private List<RegistroViagem> registros;

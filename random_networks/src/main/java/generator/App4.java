@@ -1,10 +1,11 @@
 package generator;
 
 import java.io.File;
-import java.util.HashMap;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -12,14 +13,11 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import generator.App3.LineTripRecord;
-import generator.App4.StopRecord;
 import generator.models.PontoRota;
 import generator.models.Viagem;
 import lombok.SneakyThrows;
 
 public class App4 {
-
-	public record StopRecord(String line, PontoRota pontoRota) {}
 
 	
 	@SneakyThrows
@@ -34,28 +32,58 @@ public class App4 {
 		});
 		
 		
-		tripsPerWeekdays.forEach((weekday, trips) -> {
-			Map<Object, List<StopRecord>> xG = trips
-				.stream()
-				.collect(Collectors.toMap(t -> t.line(), t -> t.trips()
-						.stream()
-						.map(Viagem::getPontos)
-						.flatMap(List<PontoRota>::stream)
-						.map(e -> new StopRecord(t.line(), e))
-						.collect(Collectors.groupingBy(t1 -> t1.pontoRota().getIdPonto())
-						)))
-				.entrySet()
-				.stream()
-				.map(Entry<String, Map<Object, List<StopRecord>>>::getValue)
-				.reduce(new HashMap<>(), (acc, el) -> {
-					acc.putAll(el);
-					return acc;
-				});
+		var xGComplete = tripsPerWeekdays
+		.entrySet()
+		.parallelStream()
+		.map(entry -> {
+			var weekday = entry.getKey();
+			var trips = entry.getValue();
 			
-			// TODO merge ponto rota
+			//rotasPorOnibus
+			var stopsByBusLine = trips.parallelStream()
+					.collect(Collectors.toMap(t -> t.line(), t -> t.trips()
+					.parallelStream()
+					.map(Viagem::getPontos)
+					.flatMap(List<PontoRota>::stream)
+					.toList()))
+					;
 			
-			System.out.println(xG.size());
-		});
+			// idPonto -> [Map<Line, List<PontoRota>>]
+			var xG = trips.stream()
+				.map(LineTripRecord::trips)
+				.flatMap(List<Viagem>::stream)
+				.map(Viagem::getPontos)
+				.flatMap(List<PontoRota>::stream)
+				.map(PontoRota::getIdPonto)
+				.collect(Collectors.toSet())
+				.parallelStream()
+				.collect(Collectors.toMap(Function.identity(), 
+						p -> stopsByBusLine.entrySet()
+							.parallelStream()
+							.collect(Collectors.toMap(Entry<String, List<PontoRota>>::getKey, 
+									e -> e.getValue()
+									.parallelStream()
+									.filter(p1 -> p1.getIdPonto().equals(p))
+									.toList()))
+							.entrySet()
+							.stream()
+							.filter(e -> !e.getValue().isEmpty())
+							.collect(Collectors.toMap(Entry<String, List<PontoRota>>::getKey, 
+									Entry<String, List<PontoRota>>::getValue))
+						)
+						);
+			
+			try {
+				mapper.writeValue(new File("./X_G_" + weekday + ".json"), xG);
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+			
+			return entry;
+			
+		}).toList();
+		
+		mapper.writeValue(new File("./X_G.json"), xGComplete);
 		
 	}
 	
