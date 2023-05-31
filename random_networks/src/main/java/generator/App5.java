@@ -1,6 +1,8 @@
 package generator;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -23,39 +25,53 @@ public class App5 {
 		var mapper = new ObjectMapper();
 		mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 		
-		//idPonto -> [Map<Line, List<PontoRota>>]
-		var xG = mapper.readValue(new File("X_G_2022-12-16.json"), 
-				new TypeReference<Map<String, Map<String, List<PontoRota>>>>() {
+		var xGCompleted = mapper.readValue(new File("X_G.json"), 
+				new TypeReference<Map<String, Map<String, Map<String, List<PontoRota>>>>>() {
 		});
 		
-		var r = xG.get("00100314000686")
+		var f = new SimpleDateFormat("yyyy-MM-dd");
+		
+		//idPonto -> [Map<Line, List<PontoRota>>]
+		xGCompleted
 			.entrySet()
 			.stream()
-			.collect(Collectors.toMap(Entry<String, List<PontoRota>>::getKey,
-					e -> e.getValue()
+			.sorted((o1, o2) -> parseDate(f, o1.getKey()).compareTo(parseDate(f, o2.getKey())) )
+			.forEach(en -> {
+				var weekday = en.getKey();
+				var xG = en.getValue();
+				var r = xG.get("00112364000410")
+				.entrySet()
+				.stream()
+				.collect(Collectors.toMap(Entry<String, List<PontoRota>>::getKey,
+						e -> e.getValue()
+							.stream()
+							.map(w -> w.getRegistros())
+							.flatMap(w -> w.stream())
+							.sorted((o1, o2) -> o1.getDataHora().compareTo(o2.getDataHora()))
+							.toList()
+						)
+						);
+				log.info("Buses {} - {}", "00112364000410", weekday);
+				r.forEach((line, entries) -> {
+					entries
 						.stream()
-						.map(w -> w.getRegistros())
+						.filter(d -> d.getDataHora().getHours() >= 10)
+						.collect(Collectors.groupingBy(e -> e.getNumeroOrdemVeiculo()))
+						.values()
+						.stream()
 						.flatMap(w -> w.stream())
 						.sorted((o1, o2) -> o1.getDataHora().compareTo(o2.getDataHora()))
-						.toList()
-					)
-					);
-		
-		r.forEach((line, entries) -> {
-			var nextBus = entries
-				.stream()
-				.filter(d -> d.getDataHora().getHours() >= 10)
-				.collect(Collectors.groupingBy(e -> e.getNumeroOrdemVeiculo()))
-				.values()
-				.stream()
-				.flatMap(w -> w.stream())
-				.min((o1, o2) -> o1.getDataHora().compareTo(o2.getDataHora()))
-				.orElseThrow();
-			
-			log.info("{} next arrival is {}", line, nextBus.getDataHora());
-			
-		});
-		
+						.limit(3)
+						.forEach(nextBus -> log.info("{} next arrival is {}", line, nextBus.getDataHora()))
+						;
+					});
+				log.info("\n");
+				});
+	}
+	
+	@SneakyThrows
+	private static Date parseDate(SimpleDateFormat f, String d) {
+		return f.parse(d);
 	}
 
 }
