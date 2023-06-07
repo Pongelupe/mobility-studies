@@ -19,7 +19,7 @@ import net.postgis.jdbc.geometry.Point;
 @EqualsAndHashCode
 public class RegistroViagem {
 
-	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss")
+	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss", timezone = "America/Sao_Paulo")
 	private Date dataHora;
 	
 	private int distanciaPercorrida;

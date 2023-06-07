@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,8 +21,10 @@ import net.postgis.jdbc.geometry.Point;
 @Builder
 public class PontoRota {
 	
+	@JsonIgnore
 	private String routeId;
 
+	@JsonProperty("stopSequence")
 	private int sequenciaPonto;
 	
 	private String idPonto;
@@ -29,6 +32,7 @@ public class PontoRota {
 	@JsonIgnore
 	private Point coord;
 	
+	@JsonIgnore
 	@Builder.Default
 	private List<RegistroViagem> registros =  new ArrayList<>();
 	
@@ -52,13 +56,13 @@ public class PontoRota {
 		return coord != null ? coord : new Point(x, y);
 	}
 	
-	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss")
+	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss", timezone = "America/Sao_Paulo")
 	public Date getArrivalTime() {
 		return registros.get(0)
 				.getDataHora();
 	}
 
-	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss")
+	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss", timezone = "America/Sao_Paulo")
 	public Date getDepartureTime() {
 		return registros.get(registros.size() - 1)
 				.getDataHora();

@@ -53,12 +53,12 @@ public class Viagem {
 		return getPontoAtual().getDistanciaPercorrida();
 	}
 	
-	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss")
+	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss", timezone = "America/Sao_Paulo")
 	public Date getHorarioPartida() {
 		return partida.getDataHora();
 	}
 	
-	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss")
+	@JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss", timezone = "America/Sao_Paulo")
 	public Date getHorarioChegada() {
 		return isViagemCompleta() ? getChegada().getDataHora() : null;
 	}
