@@ -51,7 +51,7 @@ public class App5 {
 							.toList()
 						)
 						);
-				log.info("Buses {} - {}", "00112364000410", weekday);
+				log.info("{} - Next Buses arriving at {} after 10:00", weekday, "00112364000410");
 				r.forEach((line, entries) -> {
 					entries
 						.stream()
@@ -61,7 +61,7 @@ public class App5 {
 						.stream()
 						.flatMap(w -> w.stream())
 						.sorted((o1, o2) -> o1.getDataHora().compareTo(o2.getDataHora()))
-						.limit(3)
+						.limit(1)
 						.forEach(nextBus -> log.info("{} next arrival is {}", line, nextBus.getDataHora()))
 						;
 					});

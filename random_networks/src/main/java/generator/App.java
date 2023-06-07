@@ -1,132 +1,120 @@
 package generator;
 
-import java.util.ArrayList;
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
+import generator.algorithms.EntryMerger;
+import generator.algorithms.TripMissingEntriesGenerator;
+import generator.algorithms.TripRouteAssociator;
+import generator.algorithms.TripsExtractor;
 import generator.configuration.PostgisConfig;
+import generator.models.PontoRota;
 import generator.models.RegistroViagem;
 import generator.models.Viagem;
+import generator.services.GTFSService;
 import generator.services.QueryExecutor;
+import generator.services.RTService;
+import io.jenetics.jpx.GPX;
+import io.jenetics.jpx.Track;
+import io.jenetics.jpx.TrackSegment;
+import io.jenetics.jpx.WayPoint;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import net.postgis.jdbc.PGgeometry;
-import net.postgis.jdbc.geometry.Point;
 
 @Slf4j
 public class App {
+	
+	record LineTripRecord(String line, List<Viagem> trips) {}
 
+	record RouteRecord(String headsign, List<PontoRota> route, Double length) {}
+	
 	@SneakyThrows
 	public static void main(String... args) {
 		var config = new PostgisConfig("jdbc:postgresql://localhost:15432/bh", "bh", "bh");
-		var postgisService = new QueryExecutor(config.getConn());
-		final var mapper = new ObjectMapper();
+		var queryExecutor = new QueryExecutor(config.getConn());
 		
-		var linhas = postgisService.queryAll("select distinct id_linha\n"
-				+ "from bh.bh.onibus_tempo_real otr\n"
-				+ "where id_linha = 629 and "
-				+ "data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'", rs -> rs.getInt(1));
+		var tripExtractor = new TripsExtractor();
+		var tripMissingEntriesGenerator = new TripMissingEntriesGenerator(new EntryMerger());
+		var tripRouteAssociator = new TripRouteAssociator(tripMissingEntriesGenerator);
 		
-		linhas
-		.parallelStream()
-		.map(idLinha -> 
-			postgisService.queryAll("select data_hora, distancia_percorrida, coord, numero_ordem_veiculo, velocidade_instantanea, id_linha from bh.bh.onibus_tempo_real otr\n"
-					+ "where id_linha = " + idLinha
-					+ "\n and data_hora between '2022-12-16 6:00:00' and '2022-12-16 23:59:00'\n"
-					+ "\n and numero_ordem_veiculo = 20246 "
-					+ "order by numero_ordem_veiculo, data_hora", rs -> RegistroViagem.builder()
-						.dataHora(rs.getTimestamp(1))
-						.distanciaPercorrida(rs.getInt(2))
-						.coord((Point) ((PGgeometry) rs.getObject(3)).getGeometry())
-						.numeroOrdemVeiculo(rs.getInt(4))
-						.velocidadeInstantanea(rs.getInt(5))
-						.idLinha(rs.getInt(6))
-					.build())
-		)
-		.forEach(registros ->
-			registros
-			.stream()
-			.collect(Collectors.groupingBy(RegistroViagem::getNumeroOrdemVeiculo))
-			.entrySet()
+		var gtfsService = new GTFSService(queryExecutor);
+		var rtService = new RTService(queryExecutor);
+		
+		final Function<RegistroViagem, WayPoint> registro2Waypoint = p ->
+		WayPoint.builder()
+			.lat(p.getCoord().getX())
+			.lon(p.getCoord().getY())
+			.build();
+		
+		var routesRrecords = Stream.of("9202")
+		.parallel()
+		.map(headsign -> new RouteRecord(headsign, 
+				gtfsService.getRouteFromBusHeadsign(headsign),
+				gtfsService.getRouteLength(headsign)))
+		.toList();
+		
+		List.of("2022-12-16")
 			.parallelStream()
-			.map(e -> getViagens(e.getValue()))
-			.sequential()
-			.forEach(viagens ->
-					viagens
-						.forEach(v -> {
-//							System.out.println(writeViagemAsString(mapper, v));
-							log.info("**************");
-							log.info("veiculo: {}", v.getPartida().getNumeroOrdemVeiculo());
-							log.info("distanciaPercorrida: {}", v.getDistanciaPercorrida());
-							log.info("viagem terminada: {}", v.isViagemCompleta());
-							log.info("pontos: {}", v.getRegistros().size());
-							log.info("horarioPartida: {}", v.getPartida().getDataHora());
-							log.info("horarioChegada: {}", v.isViagemCompleta() ? v.getChegada().getDataHora() : "N/A");
-							log.info("**************");
-						})
-			)
-		);
+			.forEach(date -> {
+				log.info("{} entries", date);
+				routesRrecords
+				.stream()
+				.map(entry -> {
+					var entriesbyBusLine = rtService.getEntriesbyBusLine(entry.headsign(), date);
+					var t = entriesbyBusLine
+							.entrySet()
+							.stream()
+							.parallel()
+							.map(Entry<Integer, Map<Integer, List<RegistroViagem>>>::getValue)
+							.map(e -> e.entrySet().stream().map(Entry<Integer, List<RegistroViagem>>::getValue).toList())
+							.flatMap(List<List<RegistroViagem>>::stream)
+							.map(tripExtractor::extract)
+							.sequential()
+							.flatMap(List<Viagem>::stream)
+							.filter(Viagem::isViagemCompleta)
+							.filter(v -> entry.length() * 0.7 <= v.getDistanciaPercorrida())
+							.toList()
+							;
+					t.forEach(trip -> tripRouteAssociator.associate(trip, entry.route()));
+					
+					return new LineTripRecord(entry.headsign(), t);
+				})
+				.forEach(lineTripRecord -> {
+							var a = lineTripRecord.trips.stream()
+									.map(trip -> TrackSegment.of(trip.getPontos().stream().map(PontoRota::getRegistros)
+											.flatMap(List<RegistroViagem>::stream).map(registro2Waypoint::apply).toList()))
+									.toList();
+							var builder = GPX.builder();
+
+							a.forEach(trackSegment -> builder.addTrack(Track.builder().addSegment(trackSegment).build()));
+
+							GPX gpx = builder.build();
+
+							try {
+								GPX.write(gpx, Paths.get("./pontos_%s_%s.gpx".formatted(lineTripRecord.line, date)));
+								
+								var builder2 = GPX.builder();
+								var b = lineTripRecord.trips.stream()
+										.map(trip -> TrackSegment.of(trip.getRegistros().stream()
+												.map(registro2Waypoint::apply).toList()))
+										.toList();
+								b.forEach(trackSegment -> builder2.addTrack(Track.builder().addSegment(trackSegment).build()));
+								GPX gpx2 = builder2.build();
+								GPX.write(gpx2, Paths.get("./registros_%s_%s.gpx".formatted(lineTripRecord.line, date)));
+							} catch (IOException e) {
+								e.printStackTrace();
+							}
+						});
+				}
+			);
 		
 		
 		config.close();
-	}
-	
-	@SneakyThrows
-	private static synchronized String writeViagemAsString(ObjectMapper mapper, Viagem v) {
-		return mapper.writeValueAsString(v) + ",";
-	}
-	
-	private static List<Viagem> getViagens(List<RegistroViagem> registros) {
-		var viagens = new ArrayList<Viagem>();
-		var viagem = new Viagem();
-		
-		int distanciaPercorrida = 0;
-		RegistroViagem partida = null;
-		RegistroViagem chegada = null;
-		RegistroViagem anterior = null;
-		
-		for (RegistroViagem registro : registros) {
-			
-			if (registro.getDistanciaPercorrida() >= distanciaPercorrida) {
-				
-				if (chegada != null) {
-					// comecou uma nova viagem
-					viagem.setPartida(partida);
-					viagem.setChegada(chegada);
-					viagens.add(viagem);
-					
-					
-					viagem = new Viagem();
-					distanciaPercorrida = 0;
-					partida = null;
-					chegada = null;
-				} else {
-					distanciaPercorrida = registro.getDistanciaPercorrida();
-				}
-				
-				if (partida == null || 
-						registro.getDistanciaPercorrida() == partida.getDistanciaPercorrida()) {
-					partida = registro;
-				}
-				
-				viagem.getRegistros().add(registro);
-			} else {
-				chegada = anterior;
-				distanciaPercorrida = registro.getDistanciaPercorrida();
-				viagem.getRegistros().add(registro);
-			}
-			
-			anterior = registro;
-		}
-		
-		viagem.setPartida(partida);
-		viagem.setChegada(chegada);
-		viagens.add(viagem);
-		
-		
-		return viagens;
 	}
 
 }

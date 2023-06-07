@@ -19,6 +19,8 @@ import net.postgis.jdbc.geometry.Point;
 @NoArgsConstructor
 @Builder
 public class PontoRota {
+	
+	private String routeId;
 
 	private int sequenciaPonto;
 	

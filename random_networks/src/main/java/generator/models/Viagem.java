@@ -74,4 +74,11 @@ public class Viagem {
 				.anyMatch(e -> !e.isCalculated());
 	}
 	
+	@JsonIgnore
+	public boolean isValid() {
+		var lastBusStop = pontos.get(pontos.size() - 1);
+		
+		return lastBusStop.getDepartureTime().after(getHorarioPartida());
+	}
+	
 }
