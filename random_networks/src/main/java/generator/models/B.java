@@ -3,8 +3,8 @@ package generator.models;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Date;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -37,7 +37,7 @@ public class B {
 		BiFunction<Date, Date, Long> calcDiff = (ex, re) -> ChronoUnit.MINUTES.between(
 				date2localtime.apply(ex), date2localtime.apply(re));
 		
-		var dates = List.of(timestampExpected, timestampReal)
+		var dates = Arrays.asList(timestampExpected, timestampReal)
 				.stream()
 				.filter(Objects::nonNull)
 				.toList();

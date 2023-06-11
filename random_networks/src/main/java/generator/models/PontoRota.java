@@ -44,6 +44,9 @@ public class PontoRota {
 
 	private Double y;
 	
+	@JsonFormat(pattern = "HH:mm:ss", timezone = "America/Sao_Paulo")
+	private Date timestampExpected;
+	
 	
 	public void setCoord(Point coord) {
 		x = coord.x;

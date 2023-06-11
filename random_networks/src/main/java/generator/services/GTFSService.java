@@ -3,11 +3,13 @@ package generator.services;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.IntFunction;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import generator.models.PontoRota;
 import generator.models.Route;
+import generator.models.StopPointsInterval;
 import lombok.RequiredArgsConstructor;
 import net.postgis.jdbc.PGgeometry;
 import net.postgis.jdbc.geometry.LineString;
@@ -62,6 +64,28 @@ public class GTFSService {
 			join linhas l on l.route_id = t.route_id
 			order by 1, 2
 			"""::formatted;
+	
+	private static final IntFunction<String> QUERY_DISTANCE_BETWEEN_STOPS = """
+			with linhas as (select replace(codigo_linha, '-', '  ') as route_id, id_linha 
+			from bh.bh.linha_onibus lo where id_linha = %d),
+pontos (id_linha, shape_id, stop_sequence, stop_id, ll) as (		
+			select distinct id_linha,  shape_id, st.stop_sequence, s.stop_id, 
+			s.the_geom as h
+			from gtfs.stop_times st 
+			join gtfs.stops s on s.stop_id = st.stop_id
+			join gtfs.trips t  on st.trip_id = t.trip_id
+			join linhas l on l.route_id = t.route_id
+			order by 1, 2
+			)
+			select p1.stop_sequence  as stop_sequence_1, p2.stop_sequence as stop_sequence2,
+			ST_Length(ST_LineSubstring(sg.the_geom, ST_LineLocatePoint(sg.the_geom, p1.ll), ST_LineLocatePoint(sg.the_geom, p2.ll)))
+			from pontos p2
+			join gtfs.shape_geoms sg  on sg.shape_id = p2.shape_id
+			join pontos p1 on p1.stop_sequence = p2.stop_sequence -1
+			where p1.stop_sequence > 0
+			and ST_LineLocatePoint(sg.the_geom, p1.ll) < ST_LineLocatePoint(sg.the_geom, p2.ll)
+			order by 1
+			"""::formatted;
 
 	private final QueryExecutor queryExecutor;
 	
@@ -72,6 +96,15 @@ public class GTFSService {
 				.routeArrivalTime(rs.getTimestamp(5))
 				.length(rs.getDouble(6))
 				.geom((LineString) ((PGgeometry) rs.getObject(7)).getGeometry())
+				.build());
+	}
+	
+	public List<StopPointsInterval> getStopPointsInterval(int idLinha) {
+		return queryExecutor.queryAll(QUERY_DISTANCE_BETWEEN_STOPS.apply(idLinha), 
+				rs -> StopPointsInterval.builder()
+				.stopSequence1(rs.getInt(1))
+				.stopSequence2(rs.getInt(2))
+				.length(rs.getDouble(3))
 				.build());
 	}
 
