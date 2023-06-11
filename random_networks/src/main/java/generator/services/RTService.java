@@ -17,8 +17,8 @@ public class RTService {
 	
 	private static final BiFunction<Integer, String, String> QUERY__ENTRIES_BUSLINE = """
 			select data_hora, distancia_percorrida, coord, numero_ordem_veiculo, velocidade_instantanea, id_linha from bh.bh.onibus_tempo_real otr 
-			where id_linha = %1$d 
-			and data_hora between '%2$s 6:00:00' and '%2$s 23:59:00' 
+			where id_linha = %1$d and numero_ordem_veiculo = 20887
+			and data_hora between '%2$s 00:00:00' and '%2$s 3:00:00' 
 			order by numero_ordem_veiculo, data_hora
 			"""::formatted;
 	

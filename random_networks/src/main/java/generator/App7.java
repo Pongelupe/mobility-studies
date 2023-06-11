@@ -130,8 +130,6 @@ public class App7 {
 				var route = routeTrip.r();
 				var a = new A(i + 1, route);
 				
-				var ii = new AtomicInteger(i);
-				
 				var b = routeTrip.t()
 						.stream()
 						.findFirst()
@@ -141,9 +139,8 @@ public class App7 {
 						.map(p -> B.builder()
 								.stop(p)
 								.timestampExpected(p.getTimestampExpected())
-//								.timestampExpected(calculateTimestampExpected(route.getRouteDepartureTime(), 
-//										p.getSequenciaPonto(), ii.intValue(), v))
 								.timestampReal(p.getArrivalTime())
+								.idVehicle(p.getRegistros().get(0).getNumeroOrdemVeiculo())
 								.build())
 						.toList();
 				a.setTrip(b);
@@ -162,32 +159,6 @@ public class App7 {
 		});
 		
 		config.close();
-	}
-
-	private static Date calculateTimestampExpected(Date routeDepartureTime, int sequenciaPonto, int i,
-			List<RouteTripRecord> v) {
-
-		var dtEx = DateUtils.date2localdatetime(routeDepartureTime);
-		var dtReal = DateUtils.date2localdatetime(routeDepartureTime);
-		var index = i - 1;
-		long diff = 0 ;
-		
-		if (i == 0) {
-			index = v.size() - 1;
-			dtEx = DateUtils.date2localdatetime(v.get(index).r().getRouteDepartureTime());
-			dtReal = dtReal.plusDays(1);
-		} else {
-			dtReal = DateUtils.date2localdatetime(v.get(index).r().getRouteDepartureTime());
-		}
-		
-		if (sequenciaPonto > 1) {
-			diff = ChronoUnit.MINUTES.between(dtEx, dtReal);
-		}
-		
-		return Date.from(DateUtils.date2localdatetime(routeDepartureTime)
-				.plusMinutes(Math.abs(diff * (sequenciaPonto - 1)))
-				.atZone(ZoneId.systemDefault())
-				.toInstant());
 	}
 
 }

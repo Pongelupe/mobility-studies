@@ -58,7 +58,7 @@ public class App {
 				gtfsService.getRouteLength(headsign)))
 		.toList();
 		
-		List.of("2022-12-16")
+		List.of("2022-12-14")
 			.parallelStream()
 			.forEach(date -> {
 				log.info("{} entries", date);
@@ -85,30 +85,30 @@ public class App {
 					return new LineTripRecord(entry.headsign(), t);
 				})
 				.forEach(lineTripRecord -> {
-							var a = lineTripRecord.trips.stream()
-									.map(trip -> TrackSegment.of(trip.getPontos().stream().map(PontoRota::getRegistros)
-											.flatMap(List<RegistroViagem>::stream).map(registro2Waypoint::apply).toList()))
-									.toList();
-							var builder = GPX.builder();
+					var builder = GPX.builder();
+					var trip = lineTripRecord.trips.get(1);
+					
+					var a = trip.getPontos().stream().map(PontoRota::getRegistros)
+						.flatMap(List<RegistroViagem>::stream)
+						.map(registro2Waypoint::apply)
+						.toList();
+					a.forEach(builder::addWayPoint);
 
-							a.forEach(trackSegment -> builder.addTrack(Track.builder().addSegment(trackSegment).build()));
 
-							GPX gpx = builder.build();
+					GPX gpx = builder.build();
 
-							try {
-								GPX.write(gpx, Paths.get("./pontos_%s_%s.gpx".formatted(lineTripRecord.line, date)));
-								
-								var builder2 = GPX.builder();
-								var b = lineTripRecord.trips.stream()
-										.map(trip -> TrackSegment.of(trip.getRegistros().stream()
-												.map(registro2Waypoint::apply).toList()))
-										.toList();
-								b.forEach(trackSegment -> builder2.addTrack(Track.builder().addSegment(trackSegment).build()));
-								GPX gpx2 = builder2.build();
-								GPX.write(gpx2, Paths.get("./registros_%s_%s.gpx".formatted(lineTripRecord.line, date)));
-							} catch (IOException e) {
-								e.printStackTrace();
-							}
+					try {
+						GPX.write(gpx, Paths.get("./pontos_%s_%s.gpx".formatted(lineTripRecord.line, date)));
+						
+						var builder2 = GPX.builder();
+						var b = trip.getRegistros().stream()
+								.map(registro2Waypoint::apply).toList();
+						b.forEach(builder2::addWayPoint);
+						GPX gpx2 = builder2.build();
+						GPX.write(gpx2, Paths.get("./registros_%s_%s.gpx".formatted(lineTripRecord.line, date)));
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 						});
 				}
 			);

@@ -39,6 +39,8 @@ public class TripRouteAssociator {
 			
 			var distanciaPercorridaViagem = viagem.getDistanciaPercorrida();
 			
+			var registroEmpty = registroAtual;
+			
 			for (var i = registroAtual; i < viagem.getRegistros().size() - 1; i++) {
 				var registro = viagem.getRegistros().get(i);
 				var distancia = registro.getCoord().distance(ponto.getCoord());
@@ -63,6 +65,10 @@ public class TripRouteAssociator {
 					procurando = false;
 				}
 				
+			}
+			
+			if (ponto.getRegistros().isEmpty()) {
+				registroAtual = registroEmpty;
 			}
 			
 			viagem.getPontos().add(new PontoRota(ponto));

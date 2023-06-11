@@ -30,6 +30,8 @@ public class B {
 	@JsonFormat(pattern = "HH:mm:ss", timezone = "America/Sao_Paulo")
 	private Date timestampReal;
 	
+	private int idVehicle;
+	
 	
 	public Long getDiffTimestamp() {
 		Function<Date, LocalTime> date2localtime = d -> d.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
